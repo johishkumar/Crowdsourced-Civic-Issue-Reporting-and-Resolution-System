@@ -13,9 +13,7 @@ An end-to-end, full-stack crowdsourced civic issue reporting and resolution plat
 
 ## 🌐 Live Demo & Deployment
 
-- **Vercel Live Web App**: [https://crowdsourced-civic-issue-reporting-seven.vercel.app/](https://crowdsourced-civic-issue-reporting-seven.vercel.app/)
-- **Repository**: [https://github.com/johishkumar/Crowdsourced-Civic-Issue-Reporting-and-Resolution-System.git](https://github.com/johishkumar/Crowdsourced-Civic-Issue-Reporting-and-Resolution-System.git)
-
+- **Vercel Live Web App**: [[https://crowdsourced-civic-issue-reporting-pi.vercel.app/](https://crowdsourced-civic-issue-reporting-pi.vercel.app/)]
 ---
 
 ## ✨ Design Aesthetics & Visual Identity
