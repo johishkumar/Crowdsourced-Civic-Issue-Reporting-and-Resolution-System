@@ -23,6 +23,7 @@ export default function Sidebar({ user, activeTab, setActiveTab, onLogout, lang 
 
   menuItems.push({ id: "leaderboard", label: t("leaderboard"), icon: Trophy });
 
+
   return (
     <aside className="w-64 gradient-sidebar text-white flex flex-col h-screen fixed left-0 top-0 z-20 shadow-2xl">
       {/* Sidebar Header with saffron accent */}
