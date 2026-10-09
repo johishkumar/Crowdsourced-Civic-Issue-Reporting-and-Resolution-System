@@ -3,16 +3,21 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import twilio from 'twilio';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // Database connection
-const MONGODB_URI = 'mongodb://localhost:27017/';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/';
 mongoose.connect(MONGODB_URI, { dbName: 'SIH' })
   .then(() => {
-    console.log('Successfully connected to MongoDB (SIH)');
+    console.log('Successfully connected to MongoDB');
     seedUsers();
   })
   .catch((err) => console.error('MongoDB connection error:', err));
@@ -533,9 +538,18 @@ app.put('/api/issues/:id/upvote', async (req, res) => {
   }
 });
 
+// Serve static frontend assets in production or when dist directory exists
+if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
+  app.use(express.static(path.join(__dirname, 'dist')));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+}
+
 // Start Server
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Backend Server is running on http://localhost:${PORT}`);
+  console.log(`Backend Server is running on port ${PORT}`);
 });
 
