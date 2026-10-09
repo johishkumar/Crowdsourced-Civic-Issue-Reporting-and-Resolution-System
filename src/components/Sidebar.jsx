@@ -1,99 +1,119 @@
 import React from "react";
-import { Home, Plus, List, MapPin, BarChart3, Trophy, LogOut, User } from "lucide-react";
+import { Home, Plus, List, MapPin, BarChart3, Trophy, LogOut, ShieldCheck } from "lucide-react";
 import { getTranslator } from "../locales";
 
-export default function Sidebar({ user, activeTab, setActiveTab, onLogout, lang = "en" }) {
+export default function Sidebar({ user, activeTab, setActiveTab, onLogout, lang = "en", isMobileOpen, setIsMobileOpen }) {
   const t = getTranslator(lang);
-  
+
   const menuItems = [];
-  menuItems.push({ id: "dashboard", label: t("dashboard"), icon: Home });
+  menuItems.push({ id: "dashboard", label: t("dashboard") || "Dashboard", icon: Home });
 
   if (user.role === "citizen") {
-    menuItems.push({ id: "report", label: t("reportIssue"), icon: Plus });
-    menuItems.push({ id: "my-reports", label: t("myReports"), icon: List });
+    menuItems.push({ id: "report", label: t("reportIssue") || "Report Issue", icon: Plus });
+    menuItems.push({ id: "my-reports", label: t("myReports") || "My Reports", icon: List });
   } else {
-    menuItems.push({ id: "all-issues", label: t("allIssues"), icon: List });
+    menuItems.push({ id: "all-issues", label: t("allIssues") || "All Issues", icon: List });
   }
 
-  menuItems.push({ id: "map", label: t("interactiveMap"), icon: MapPin });
+  menuItems.push({ id: "map", label: t("interactiveMap") || "Interactive Map", icon: MapPin });
 
   if (user.role === "admin") {
-    menuItems.push({ id: "analytics", label: t("systemAnalytics"), icon: BarChart3 });
+    menuItems.push({ id: "analytics", label: t("systemAnalytics") || "Analytics", icon: BarChart3 });
   }
 
-  menuItems.push({ id: "leaderboard", label: t("leaderboard"), icon: Trophy });
+  menuItems.push({ id: "leaderboard", label: t("leaderboard") || "Leaderboard", icon: Trophy });
 
+  const handleNavClick = (id) => {
+    setActiveTab(id);
+    if (setIsMobileOpen) setIsMobileOpen(false);
+  };
 
   return (
-    <aside className="w-64 gradient-sidebar text-white flex flex-col h-screen fixed left-0 top-0 z-20 shadow-2xl">
-      {/* Sidebar Header with saffron accent */}
-      <div className="p-6 border-b border-white/[0.06]">
-        <div className="flex items-center space-x-3">
-          <div className="w-11 h-11 bg-white/95 rounded-xl flex items-center justify-center p-1 shadow-lg border border-theme-200/50 hover:scale-105 transition-transform duration-300">
-            <img src="/assets/jharkhand_emblem.png" alt="JH" className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <h2 className="font-bold text-[14.5px] tracking-tight bg-gradient-to-r from-saffron-300 via-white to-peacock-300 bg-clip-text text-transparent leading-none">
-              Jharkhand Pragati
-            </h2>
-            <span className="text-[9px] text-theme-400/80 font-bold uppercase tracking-wider block mt-1">Government Portal</span>
-          </div>
-        </div>
-        {/* Ornamental line */}
-        <div className="flex items-center mt-4 gap-1">
-          <div className="h-px flex-1 bg-gradient-to-r from-theme-500/40 to-transparent" />
-          <div className="w-1 h-1 rounded-full bg-theme-400/50" />
-          <div className="w-1 h-1 rounded-full bg-theme-300/50" />
-          <div className="w-1 h-1 rounded-full bg-theme-400/50" />
-          <div className="h-px flex-1 bg-gradient-to-l from-theme-500/30 to-transparent" />
-        </div>
-      </div>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {isMobileOpen && (
+        <div
+          onClick={() => setIsMobileOpen(false)}
+          className="fixed inset-0 bg-[#0A0A0A]/85 backdrop-blur-xs z-35 md:hidden transition-opacity duration-200"
+        />
+      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 cursor-pointer group relative overflow-hidden ${
-                isActive
-                  ? "gradient-theme text-white shadow-lg shadow-theme-600/20 font-bold scale-[1.01]"
-                  : "text-white/50 hover:bg-white/[0.05] hover:text-white/90"
-              }`}
-            >
-              {/* Active indicator line */}
-              {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-white rounded-r-md z-20" />}
-              {/* Active indicator glow */}
-              {isActive && <div className="absolute inset-0 bg-gradient-to-r from-white/12 to-transparent" />}
-              <Icon className={`h-5 w-5 relative z-10 ${isActive ? "text-white" : "text-white/40 group-hover:text-theme-400"} transition-colors`} />
-              <span className="relative z-10">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className="p-4 border-t border-white/[0.06] bg-dark-900/50">
-        <div className="flex items-center space-x-3 mb-4 px-2">
-          <div className="w-9 h-9 rounded-full bg-theme-500/10 flex items-center justify-center text-theme-400 ring-2 ring-theme-500/20">
-            <User className="h-5 w-5" />
+      {/* Art Deco Obsidian Command-Center Sidebar */}
+      <aside
+        className={`w-64 bg-[#0A0A0A] text-[#F2F0E4] flex flex-col h-screen fixed left-0 top-0 z-40 border-r border-[#D4AF37]/30 shadow-2xl transition-transform duration-200 ease-in-out ${
+          isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
+        {/* Portal Header */}
+        <div className="p-5 border-b border-[#D4AF37]/30 bg-[#141414] relative">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-[#0A0A0A] flex items-center justify-center p-1.5 border border-[#D4AF37] shadow-sm shrink-0">
+              <img src="/assets/jharkhand_emblem.png" alt="Emblem" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <h2 className="font-artdeco-heading text-xs tracking-widest text-[#F2F0E4] leading-tight">
+                Jharkhand Pragati
+              </h2>
+              <span className="text-[9px] text-[#D4AF37] font-semibold uppercase tracking-widest block mt-0.5">
+                Govt Digital Service
+              </span>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate text-white/90">{user.name}</p>
-            <p className="text-[10px] font-bold text-theme-400 uppercase tracking-wider">{user.role}</p>
-          </div>
+          {/* Champagne gold accent divider line */}
+          <div className="h-[1px] w-full bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB]/40 to-transparent mt-4" />
         </div>
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl border border-white/[0.06] text-white/40 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 text-xs font-semibold cursor-pointer transition-all duration-300"
-        >
-          <LogOut className="h-4 w-4" />
-          <span>{t("signOut")}</span>
-        </button>
-      </div>
-    </aside>
+
+        {/* Navigation Menu */}
+        <nav className="flex-1 px-2.5 py-4 space-y-1.5 overflow-y-auto">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavClick(item.id)}
+                className={`w-full flex items-center space-x-3 px-3.5 py-3 text-xs uppercase tracking-wider font-artdeco-body cursor-pointer transition-all duration-200 ${
+                  isActive
+                    ? "bg-[#1E3D59]/40 text-[#D4AF37] border-l-2 border-[#D4AF37] font-bold shadow-[0_0_15px_rgba(212,175,55,0.15)]"
+                    : "text-[#888888] hover:bg-[#141414] hover:text-[#F2F0E4] hover:border-l-2 hover:border-[#D4AF37]/50"
+                }`}
+              >
+                <Icon
+                  className={`h-4 w-4 shrink-0 transition-all duration-200 ${
+                    isActive ? "text-[#D4AF37]" : "text-[#888888] group-hover:text-[#D4AF37]"
+                  }`}
+                />
+                <span className="truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* User Footer Card */}
+        <div className="p-4 border-t border-[#D4AF37]/30 bg-[#141414] relative">
+          <div className="flex items-center space-x-3 mb-3 px-1">
+            <div className="w-8 h-8 bg-[#D4AF37] text-[#0A0A0A] flex items-center justify-center font-bold text-xs border border-[#F3E5AB] shrink-0 uppercase">
+              {user.name.charAt(0)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold truncate text-[#F2F0E4]">{user.name}</p>
+              <div className="flex items-center space-x-1 mt-0.5">
+                <ShieldCheck className="h-3 w-3 text-[#D4AF37]" />
+                <span className="text-[10px] font-semibold text-[#D4AF37] uppercase tracking-wider truncate">
+                  {user.role} {user.department ? `• ${user.department}` : ""}
+                </span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center space-x-2 px-3 py-2 border border-[#C94A4A]/50 text-[#C94A4A] hover:text-[#FFFFFF] hover:bg-[#C94A4A] hover:border-[#C94A4A] text-xs uppercase tracking-wider font-semibold cursor-pointer transition-all duration-200"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span>{t("signOut") || "Sign Out"}</span>
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

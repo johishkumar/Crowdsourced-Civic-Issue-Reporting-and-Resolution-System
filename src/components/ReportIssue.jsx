@@ -5,6 +5,7 @@ import { getTranslator } from "../locales";
 import { sendSms } from "../utils/smsHelper";
 import SmsSettingsModal from "./SmsSettingsModal";
 import { analyseMedia } from "../utils/imageAnalysis";
+import MagneticButton from "./MagneticButton";
 
 export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
   const t = getTranslator(lang);
@@ -187,7 +188,8 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
     setAiSource(isVideo ? "video" : "image");
     try {
       const result = await analyseMedia(src, isVideo);
-      if (result && result.confidence >= 45) {
+      if (result && result.isCivicIssue !== false) {
+        // Accept any civic prediction — the scoring system always picks the best category
         setAiResult(result);
         setCategory(result.category);
         setTitle(result.title);
@@ -196,6 +198,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
         setAiToastVisible(true);
         setTimeout(() => setAiToastVisible(false), 4500);
       } else {
+        // Only reject pure-sky / blank images (confidence < 20)
         setAiError(true);
       }
     } catch {
@@ -769,27 +772,25 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
     <div className="max-w-3xl mx-auto space-y-8 animate-float-in">
       {/* Title */}
       <div>
-        <h1 className="text-3xl font-black text-dark-800 tracking-tight">{t("reportCivicIssue")}</h1>
-        <p className="text-dark-500 font-medium mt-1">{t("reportSubtitle")}</p>
+        <h1 className="text-3xl font-artdeco-heading text-[#F2F0E4] tracking-widest">{t("reportCivicIssue")}</h1>
+        <p className="text-[#888888] font-medium mt-1">{t("reportSubtitle")}</p>
         <div className="flex items-center mt-3 gap-1.5 font-bold">
-          <div className="h-0.5 w-16 bg-gradient-to-r from-theme-400 to-theme-200 rounded-full" />
-          <div className="w-1.5 h-1.5 rounded-full bg-theme-400" />
-          <div className="w-1 h-1 rounded-full bg-theme-300" />
-          <div className="h-0.5 w-8 bg-gradient-to-r from-theme-300 to-transparent rounded-full" />
+          <div className="h-[2px] w-24 bg-[#D4AF37]" />
+          <div className="w-1.5 h-1.5 bg-[#D4AF37]" />
         </div>
       </div>
 
-      <div className="card-premium rounded-3xl overflow-hidden">
+      <div className="card-art-deco bg-[#141414] border border-[#D4AF37]/30 overflow-hidden">
         {/* Dialect Switcher Banner */}
-        <div className="bg-theme-50/40 p-6 border-b border-theme-100/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="bg-[#0A0A0A] p-6 border-b border-[#D4AF37]/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center space-x-2">
-            <Languages className="h-5 w-5 text-theme-600 animate-pulse" />
-            <span className="text-sm font-bold text-dark-700">{t("audioDialectMode")}</span>
+            <Languages className="h-5 w-5 text-[#D4AF37] animate-pulse" />
+            <span className="text-sm font-artdeco-heading text-[#F2F0E4] uppercase tracking-wider">{t("audioDialectMode")}</span>
           </div>
           <select
             value={selectedLang}
             onChange={(e) => setSelectedLang(e.target.value)}
-            className="px-4 py-2 border border-theme-200/30 rounded-xl bg-white text-xs font-bold text-dark-700 focus:outline-none cursor-pointer"
+            className="px-4 py-2 border border-[#D4AF37]/40 bg-[#141414] text-xs font-bold text-[#F2F0E4] focus:outline-none cursor-pointer"
           >
             <option value="en">English (US)</option>
             <option value="hi">Hindi (हिंदी)</option>
@@ -803,10 +804,9 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
         </div>
 
         {/* ── Voice Input Section (Enhanced) ───────────────────────────────── */}
-        <div className="p-8 border-b border-theme-100/20 flex flex-col items-center justify-center text-center bg-theme-50/10 relative overflow-hidden" style={{backgroundImage: "radial-gradient(circle at 50% 0%, rgba(99,102,241,0.04) 0%, transparent 70%)"}}
-        >
+        <div className="p-8 border-b border-[#D4AF37]/30 flex flex-col items-center justify-center text-center bg-[#0A0A0A] relative overflow-hidden">
           {/* Dialect Language Badge */}
-          <div className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 bg-theme-50 rounded-full border border-theme-200/40 text-[10px] font-black text-theme-700 uppercase tracking-wider">
+          <div className="absolute top-3 right-4 flex items-center gap-1.5 px-2.5 py-1 bg-[#141414] border border-[#D4AF37]/40 text-[10px] font-bold text-[#D4AF37] uppercase tracking-widest">
             <Languages className="h-3 w-3" />
             <span>{
               selectedLang === "sat" ? "Santali" :
@@ -824,31 +824,31 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
             {/* Pulsing rings when recording */}
             {isRecording && (
               <>
-                <span className="absolute inset-0 rounded-full bg-red-400/20 animate-ping" style={{animationDuration: "0.9s"}} />
-                <span className="absolute -inset-3 rounded-full bg-red-400/10 animate-ping" style={{animationDuration: "1.3s", animationDelay: "0.2s"}} />
+                <span className="absolute inset-0 rounded-full bg-[#C94A4A]/40 animate-ping" style={{animationDuration: "0.9s"}} />
+                <span className="absolute -inset-3 rounded-full bg-[#C94A4A]/20 animate-ping" style={{animationDuration: "1.3s", animationDelay: "0.2s"}} />
               </>
             )}
             <button
               type="button"
               onClick={handleTriggerRecording}
-              className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer border-2 ${
+              className={`relative w-22 h-22 rounded-full flex items-center justify-center shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer border-2 ${
                 isRecording
-                  ? "bg-gradient-to-br from-red-600 to-red-400 border-red-300 text-white"
+                  ? "bg-[#C94A4A] border-white text-white shadow-red-500/40"
                   : voiceFilled
-                  ? "bg-gradient-to-br from-emerald-500 to-emerald-600 border-emerald-400 text-white shadow-emerald-500/30"
-                  : "bg-gradient-to-br from-theme-500 to-theme-700 border-theme-400 text-white shadow-theme-500/20"
+                  ? "bg-[#16845B] border-[#D4AF37] text-white shadow-emerald-600/40"
+                  : "bg-[#141414] border-[#D4AF37] text-[#D4AF37] shadow-[0_0_20px_rgba(212,175,55,0.25)] hover:bg-[#D4AF37] hover:text-[#0A0A0A]"
               }`}
               title={isRecording ? "Tap to stop recording" : "Tap to start speaking"}
             >
-              {isRecording ? <MicOff className="h-9 w-9" /> : voiceFilled ? <Check className="h-9 w-9" /> : <Mic className="h-9 w-9" />}
+              {isRecording ? <MicOff className="h-10 w-10 text-white" /> : voiceFilled ? <Check className="h-10 w-10 text-white" /> : <Mic className="h-10 w-10 text-[#D4AF37]" />}
             </button>
           </div>
 
           {/* Title + Subtitle */}
-          <h3 className="font-bold text-dark-800 text-md mt-4">
+          <h3 className="font-artdeco-heading text-[#F2F0E4] text-base mt-4">
             {isRecording ? "🎙️ Listening… speak now" : voiceFilled ? "✅ Voice filled! Tap to re-record" : "Tap to Speak Report Info"}
           </h3>
-          <p className="text-dark-500 text-xs mt-1 max-w-sm leading-relaxed">
+          <p className="text-[#888888] text-xs mt-1 max-w-sm leading-relaxed font-medium">
             {isRecording
               ? "Speak in your native dialect — Santali, Bhojpuri, Hindi, Tamil, Malayalam, or English."
               : "Record in your native dialect — AI auto-detects issue type and fills the form."
@@ -857,7 +857,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
           {/* Recording Timer */}
           {isRecording && (
-            <span className="mt-3 px-3.5 py-1 bg-red-50 text-red-600 font-mono font-bold text-xs rounded-full border border-red-100">
+            <span className="mt-3 px-3.5 py-1 bg-[#0A0A0A] text-[#C94A4A] font-mono font-bold text-xs border border-[#C94A4A]/40">
               ⏺ {formatTime(voiceTimer)}
             </span>
           )}
@@ -868,7 +868,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               {[0.4,0.7,1,0.85,0.6,1,0.75,0.5,0.9,0.65,1,0.8,0.45,0.7,0.95].map((h, i) => (
                 <div
                   key={i}
-                  className="w-[3px] rounded-full bg-red-500 opacity-80"
+                  className="w-[3px] bg-[#D4AF37]"
                   style={{
                     height: `${h * 28}px`,
                     animation: `waveBar 0.${6 + (i % 5)}s ease-in-out infinite alternate`,
@@ -887,30 +887,30 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
           {/* Live interim transcript */}
           {interimText && (
-            <div className="mt-4 w-full max-w-sm px-4 py-2.5 bg-white/80 border border-theme-200/40 rounded-xl text-left animate-pulse">
-              <span className="text-[10px] font-black text-theme-600 uppercase tracking-wider block mb-0.5">🎤 Hearing…</span>
-              <p className="text-sm text-dark-700 font-medium leading-snug italic">{interimText}</p>
+            <div className="mt-4 w-full max-w-sm px-4 py-2.5 bg-[#141414] border border-[#D4AF37]/40 text-left animate-pulse">
+              <span className="text-[10px] font-artdeco-heading text-[#D4AF37] uppercase tracking-wider block mb-0.5">🎤 Hearing…</span>
+              <p className="text-sm text-[#F2F0E4] font-medium leading-snug italic">{interimText}</p>
             </div>
           )}
 
           {/* Translation / Auto-fill result panel */}
           {voiceFilled && !isRecording && (
-            <div className="mt-4 w-full max-w-md bg-emerald-50 border border-emerald-200/60 rounded-2xl p-4 text-left space-y-2 animate-float-in">
+            <div className="mt-4 w-full max-w-md bg-[#141414] border border-[#D4AF37]/50 p-4 text-left space-y-2 animate-float-in">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-emerald-700 uppercase tracking-wider">🤖 AI Auto-Fill Result</span>
+                <span className="text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-wider">🤖 AI Auto-Fill Result</span>
               </div>
               <div className="space-y-1.5">
                 <div className="flex gap-2 text-xs">
-                  <span className="font-bold text-dark-600 w-20 shrink-0">Spoken:</span>
-                  <span className="text-dark-700 italic line-clamp-2">{voiceOriginal}</span>
+                  <span className="font-bold text-[#888888] w-20 shrink-0">Spoken:</span>
+                  <span className="text-[#F2F0E4] italic line-clamp-2">{voiceOriginal}</span>
                 </div>
                 <div className="flex gap-2 text-xs">
-                  <span className="font-bold text-dark-600 w-20 shrink-0">Detected:</span>
-                  <span className="text-emerald-700 font-bold">{voiceDetectedCategory}</span>
+                  <span className="font-bold text-[#888888] w-20 shrink-0">Detected:</span>
+                  <span className="text-[#D4AF37] font-bold">{voiceDetectedCategory}</span>
                 </div>
                 <div className="flex gap-2 text-xs">
-                  <span className="font-bold text-dark-600 w-20 shrink-0">Filled:</span>
-                  <span className="text-theme-700 font-semibold">Category · Title · Description</span>
+                  <span className="font-bold text-[#888888] w-20 shrink-0">Filled:</span>
+                  <span className="text-[#F2F0E4] font-semibold">Category · Title · Description</span>
                 </div>
               </div>
             </div>
@@ -938,13 +938,13 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
           <div>
             {/* Category */}
             <div>
-              <label className="block text-xs font-bold text-dark-600 uppercase tracking-widest mb-2">
+              <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-2">
                 {t("mainCategory")}
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-4 py-3 border border-theme-200/40 rounded-xl text-sm bg-white/80 focus:bg-white transition-all duration-200 cursor-pointer"
+                className="w-full px-4 py-3 border border-[#D4AF37]/30 bg-[#141414] text-[#F2F0E4] text-sm focus:ring-1 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all cursor-pointer"
               >
                 <option value="road">Road & Potholes</option>
                 <option value="garbage">Garbage & Sanitation</option>
@@ -961,7 +961,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-bold text-dark-600 uppercase tracking-widest mb-2">
+            <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-2">
               {t("detailedDescription")}
             </label>
             <textarea
@@ -970,42 +970,43 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What seems to be the problem? Include Landmark reference guides..."
-              className="w-full p-4 border border-theme-200/40 rounded-xl text-sm bg-white/80 focus:bg-white transition-all duration-200"
+              className="w-full p-4 border border-[#D4AF37]/30 bg-[#141414] text-[#F2F0E4] text-sm focus:ring-1 focus:ring-[#D4AF37] focus:border-[#D4AF37] transition-all placeholder:text-[#888888]"
             />
           </div>
 
           {/* Mobile Verification Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-theme-50/20 p-6 rounded-2xl border border-theme-100/10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0A0A0A] p-6 border border-[#D4AF37]/30">
             <div>
-              <label className="block text-xs font-bold text-dark-600 uppercase tracking-widest mb-2 flex items-center justify-between">
+              <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  <Smartphone className="h-4 w-4 text-theme-600" />
+                  <Smartphone className="h-4 w-4 text-[#D4AF37]" />
                   {t("phoneNumber") || "Reporter Mobile Number *"}
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowSmsSettings(true)}
-                  className="text-theme-650 hover:text-theme-750 flex items-center gap-1 text-[10px] font-black uppercase tracking-wider cursor-pointer hover:underline"
+                  className="text-[#D4AF37] hover:underline flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest cursor-pointer"
                 >
                   <Settings className="h-3.5 w-3.5" />
                   <span>Config Gateway</span>
                 </button>
               </label>
               <div className="relative">
-                <span className="absolute left-4 top-3.5 text-sm text-dark-550 font-black">+91</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[#D4AF37] font-bold z-10 pointer-events-none">+91</span>
                 <input
                   type="tel"
                   required
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder={t("phonePlaceholder") || "Enter 10-digit mobile number"}
-                  className="w-full pl-14 pr-4 py-3 border border-theme-200/40 rounded-xl text-sm bg-white/80 focus:bg-white transition-all duration-200 font-semibold text-dark-750"
+                  style={{ paddingLeft: "3.5rem" }}
+                  className="w-full pr-4 py-3 border border-[#D4AF37]/30 bg-[#141414] text-[#F2F0E4] text-sm focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all font-semibold"
                 />
               </div>
             </div>
-            <div className="flex items-center text-xs text-dark-500/80 font-medium leading-relaxed">
+            <div className="flex items-center text-xs text-[#888888] font-medium leading-relaxed">
               <span>
-                <strong>Note:</strong> A 4-digit verification code (OTP) will be generated to verify this ticket reporting.
+                <strong className="text-[#F2F0E4]">Note:</strong> A 6-digit verification code (OTP) will be generated to verify this ticket reporting.
               </span>
             </div>
           </div>
@@ -1013,7 +1014,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* GPS Simulation */}
             <div>
-              <label className="block text-xs font-bold text-dark-600 uppercase tracking-widest mb-2">
+              <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-2">
                 {t("geoCoords")}
               </label>
               <div className="flex space-x-2">
@@ -1024,30 +1025,30 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                   onChange={(e) => setLocationAddress(e.target.value)}
                   onFocus={() => setShowMap(true)}
                   placeholder="Address or click Auto GPS"
-                  className="flex-1 px-4 py-3 border border-theme-200/40 rounded-xl text-sm bg-white/80 focus:bg-white transition-all duration-200"
+                  className="flex-1 px-4 py-3 border border-[#D4AF37]/30 bg-[#141414] text-[#F2F0E4] text-sm focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] transition-all placeholder:text-[#888888]"
                 />
                 <button
                   type="button"
                   onClick={handleDeviceGPS}
                   disabled={gpsLoading}
-                  className="px-4 py-2.5 bg-theme-50 border border-theme-200 text-theme-700 rounded-xl text-xs font-bold flex items-center space-x-1.5 hover:bg-theme-100 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait shrink-0"
+                  className="px-4 py-2.5 bg-[#0A0A0A] border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-bold flex items-center space-x-1.5 hover:bg-[#D4AF37] hover:text-[#0A0A0A] transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait shrink-0 uppercase tracking-wider"
                 >
                   {gpsLoading ? (
-                    <div className="w-4 h-4 border-2 border-theme-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <MapPin className="h-4.5 w-4.5 shrink-0 text-theme-600" />
+                    <MapPin className="h-4.5 w-4.5 shrink-0 text-[#D4AF37]" />
                   )}
                   <span>{gpsLoading ? "Locating…" : "Auto GPS"}</span>
                 </button>
               </div>
               {coords && (
-                <span className="text-[10px] text-dark-500/60 font-mono mt-1.5 block">
+                <span className="text-[10px] text-[#D4AF37] font-mono mt-1.5 block">
                   📍 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
                 </span>
               )}
               {/* OpenStreetMap embed — no API key, shows real coordinates */}
               {showMap && coords && (
-                <div className="mt-3 rounded-2xl overflow-hidden border border-theme-200/40 shadow-inner animate-fade-in">
+                <div className="mt-3 overflow-hidden border border-[#D4AF37]/40 shadow-inner animate-fade-in bg-[#0A0A0A]">
                   <iframe
                     key={`${coords.lat}-${coords.lng}`}
                     title="Location Map"
@@ -1059,15 +1060,15 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                     style={{ border: 0 }}
                     allowFullScreen
                   />
-                  <div className="flex items-center justify-between px-3 py-1.5 bg-theme-50/60 border-t border-theme-100/30">
-                    <span className="text-[9px] font-mono text-dark-500">
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-[#0A0A0A] border-t border-[#D4AF37]/30">
+                    <span className="text-[9px] font-mono text-[#888888]">
                       📍 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
                     </span>
                     <a
                       href={`https://www.openstreetmap.org/?mlat=${coords.lat}&mlon=${coords.lng}#map=15/${coords.lat}/${coords.lng}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[9px] font-bold text-theme-600 hover:underline"
+                      className="text-[9px] font-bold text-[#D4AF37] hover:underline"
                     >
                       Open in OSM ↗
                     </a>
@@ -1078,10 +1079,10 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
             {/* Media Upload — Photo + Video */}
             <div>
-              <label className="block text-xs font-bold text-dark-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                <span>Attach Photo / Video Evidence</span>
-                <span className="flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[9px] font-black normal-case tracking-normal border border-violet-200/60">
-                  <Sparkles className="w-2.5 h-2.5" />
+              <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-2">Attach Photo / Video Evidence</span>
+                <span className="flex items-center gap-1 px-2.5 py-0.5 bg-[#141414] text-[#D4AF37] border border-[#D4AF37]/40 text-[9px] font-bold uppercase tracking-widest">
+                  <Sparkles className="w-2.5 h-2.5 text-[#D4AF37]" />
                   AI Auto-Fill
                 </span>
               </label>
@@ -1110,20 +1111,20 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                 <button
                   type="button"
                   onClick={handleImagePicker}
-                  className="py-3 px-3 border border-dashed border-theme-300 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-dark-550 hover:bg-theme-50/40 transition-colors cursor-pointer group"
+                  className="py-3 px-3 border border-dashed border-[#D4AF37]/40 bg-[#141414] flex items-center justify-center gap-2 text-xs font-bold text-[#F2F0E4] hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] transition-all cursor-pointer group"
                 >
-                  <Camera className="h-4 w-4 text-theme-600 group-hover:scale-110 transition-transform" />
-                  <span>📷 Photo</span>
+                  <Camera className="h-4 w-4 text-[#D4AF37] group-hover:scale-110 transition-transform" />
+                  <span className="text-[#F2F0E4]">📷 Photo</span>
                 </button>
 
                 {/* Video button */}
                 <button
                   type="button"
                   onClick={handleVideoPicker}
-                  className="py-3 px-3 border border-dashed border-red-300 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-dark-550 hover:bg-red-50/30 transition-colors cursor-pointer group"
+                  className="py-3 px-3 border border-dashed border-[#D4AF37]/40 bg-[#141414] flex items-center justify-center gap-2 text-xs font-bold text-[#F2F0E4] hover:bg-[#D4AF37]/10 hover:border-[#D4AF37] transition-all cursor-pointer group"
                 >
-                  <Video className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
-                  <span>🎬 Video</span>
+                  <Video className="h-4 w-4 text-[#D4AF37] group-hover:scale-110 transition-transform" />
+                  <span className="text-[#F2F0E4]">🎬 Video</span>
                 </button>
               </div>
 
@@ -1132,14 +1133,14 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 text-[10px] font-bold text-theme-600 hover:text-theme-700 py-1.5 bg-theme-50/40 hover:bg-theme-100/50 rounded-lg transition-colors cursor-pointer border border-theme-200/30"
+                  className="flex-1 text-[10px] font-bold text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#0A0A0A] py-2 bg-[#0A0A0A] transition-all cursor-pointer border border-[#D4AF37]/40 uppercase tracking-wider text-center"
                 >
                   + Upload Image File
                 </button>
                 <button
                   type="button"
                   onClick={() => videoInputRef.current?.click()}
-                  className="flex-1 text-[10px] font-bold text-red-500 hover:text-red-600 py-1.5 bg-red-50/30 hover:bg-red-100/40 rounded-lg transition-colors cursor-pointer border border-red-200/30"
+                  className="flex-1 text-[10px] font-bold text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#0A0A0A] py-2 bg-[#0A0A0A] transition-all cursor-pointer border border-[#D4AF37]/40 uppercase tracking-wider text-center"
                 >
                   + Upload Video File
                 </button>
@@ -1148,17 +1149,17 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               {/* Image Previews */}
               {images.length > 0 && (
                 <div className="mt-3 space-y-1.5 animate-float-in">
-                  <span className="text-[10px] font-black text-dark-500 uppercase tracking-wider">
+                  <span className="text-[10px] font-artdeco-heading text-[#D4AF37] uppercase tracking-wider">
                     📷 {images.length} Photo{images.length > 1 ? "s" : ""}
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {images.map((src, idx) => (
-                      <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden border border-theme-200 bg-theme-50/20 flex-shrink-0">
+                      <div key={idx} className="relative w-14 h-14 border border-[#D4AF37]/40 bg-[#0A0A0A] flex-shrink-0">
                         <img src={src} alt={`Evidence ${idx + 1}`} className="w-full h-full object-cover" />
                         <button
                           type="button"
                           onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
-                          className="absolute top-0.5 right-0.5 p-0.5 bg-dark-900/70 rounded-full text-white hover:bg-red-600 transition-colors cursor-pointer"
+                          className="absolute top-0.5 right-0.5 p-0.5 bg-[#0A0A0A]/80 text-[#D4AF37] hover:bg-[#C94A4A] hover:text-white transition-colors cursor-pointer border border-[#D4AF37]/30"
                         >
                           <X className="h-2.5 w-2.5" />
                         </button>
@@ -1171,22 +1172,22 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               {/* Video Previews */}
               {videos.length > 0 && (
                 <div className="mt-3 space-y-2 animate-float-in">
-                  <span className="text-[10px] font-black text-dark-500 uppercase tracking-wider">
+                  <span className="text-[10px] font-artdeco-heading text-[#D4AF37] uppercase tracking-wider">
                     🎬 {videos.length} Video{videos.length > 1 ? "s" : ""}
                   </span>
                   {videos.map((v, idx) => (
-                    <div key={idx} className="relative rounded-xl overflow-hidden border border-red-200/50 bg-black/5">
+                    <div key={idx} className="relative border border-[#D4AF37]/40 bg-[#0A0A0A]">
                       <video
                         src={v.url}
                         controls
-                        className="w-full rounded-xl max-h-36 object-contain bg-black"
+                        className="w-full max-h-36 object-contain bg-[#0A0A0A]"
                       />
-                      <div className="flex items-center justify-between px-2 py-1 bg-dark-50/20">
-                        <span className="text-[9px] font-semibold text-dark-500 truncate max-w-[70%]">{v.name}</span>
+                      <div className="flex items-center justify-between px-2.5 py-1 bg-[#141414] border-t border-[#D4AF37]/30">
+                        <span className="text-[9px] font-mono text-[#888888] truncate max-w-[70%]">{v.name}</span>
                         <button
                           type="button"
                           onClick={() => setVideos((prev) => prev.filter((_, i) => i !== idx))}
-                          className="p-1 text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                          className="p-1 text-[#C94A4A] hover:text-white transition-colors cursor-pointer"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -1198,16 +1199,16 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
               {/* ── AI Analysis Result Panel ─────────────────────────────── */}
               {aiAnalysing && (
-                <div className="mt-4 rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 animate-pulse">
+                <div className="mt-4 border border-[#D4AF37]/50 bg-[#0A0A0A] p-4 animate-pulse">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
-                      <Sparkles className="w-4 h-4 text-violet-600 animate-spin" style={{ animationDuration: "2s" }} />
+                    <div className="w-7 h-7 bg-[#141414] border border-[#D4AF37]/40 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4 text-[#D4AF37] animate-spin" style={{ animationDuration: "2s" }} />
                     </div>
                     <div>
-                      <p className="text-xs font-black text-violet-700 uppercase tracking-wider">
+                      <p className="text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-wider">
                         🤖 AI Analysing {aiSource === "video" ? "Video" : "Photo"}…
                       </p>
-                      <p className="text-[10px] text-violet-500/80 font-medium mt-0.5">
+                      <p className="text-[10px] text-[#888888] font-medium mt-0.5">
                         Detecting civic issue type &amp; generating description
                       </p>
                     </div>
@@ -1216,7 +1217,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                     {[40, 65, 90, 55, 75].map((w, i) => (
                       <div
                         key={i}
-                        className="h-1.5 rounded-full bg-violet-300/60"
+                        className="h-1.5 bg-[#D4AF37]/40"
                         style={{ width: `${w}%`, animationDelay: `${i * 0.15}s` }}
                       />
                     ))}
@@ -1225,15 +1226,15 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               )}
 
               {!aiAnalysing && aiResult && !aiResult.lowConfidence && (
-                <div className="mt-4 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 animate-float-in">
+                <div className="mt-4 border border-[#D4AF37]/50 bg-[#141414] p-4 animate-float-in">
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                        <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <div className="w-7 h-7 bg-[#0A0A0A] border border-[#D4AF37]/40 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-[#D4AF37]" />
                       </div>
                       <div>
-                        <p className="text-xs font-black text-emerald-700 uppercase tracking-wider">🤖 AI Auto-Filled Form</p>
-                        <p className="text-[10px] text-emerald-500/80 font-medium">
+                        <p className="text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-wider">🤖 AI Auto-Filled Form</p>
+                        <p className="text-[10px] text-[#888888] font-medium">
                           {aiResult.confidence}% confidence · detected from {aiSource}
                         </p>
                       </div>
@@ -1241,46 +1242,46 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                     <button
                       type="button"
                       onClick={() => setAiResult(null)}
-                      className="text-dark-400 hover:text-dark-600 transition-colors cursor-pointer shrink-0"
+                      className="text-[#888888] hover:text-[#F2F0E4] transition-colors cursor-pointer shrink-0"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] uppercase tracking-widest font-black text-dark-500 w-20 shrink-0">Category</span>
-                      <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold capitalize">
+                      <span className="text-[9px] uppercase tracking-widest font-bold text-[#888888] w-20 shrink-0">Category</span>
+                      <span className="px-2.5 py-0.5 bg-[#0A0A0A] text-[#D4AF37] border border-[#D4AF37]/40 text-[10px] font-bold capitalize">
                         ✓ {aiResult.category.replace(/-/g, " ")}
                       </span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="text-[9px] uppercase tracking-widest font-black text-dark-500 w-20 shrink-0 pt-0.5">Title</span>
-                      <span className="text-xs text-dark-700 font-semibold leading-snug">{aiResult.title}</span>
+                      <span className="text-[9px] uppercase tracking-widest font-bold text-[#888888] w-20 shrink-0 pt-0.5">Title</span>
+                      <span className="text-xs text-[#F2F0E4] font-semibold leading-snug">{aiResult.title}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] uppercase tracking-widest font-black text-dark-500 w-20 shrink-0">Priority</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
-                        aiResult.priority === "critical" ? "bg-red-100 text-red-700" :
-                        aiResult.priority === "high"     ? "bg-orange-100 text-orange-700" :
-                        aiResult.priority === "medium"   ? "bg-yellow-100 text-yellow-700" :
-                                                           "bg-green-100 text-green-700"
+                      <span className="text-[9px] uppercase tracking-widest font-bold text-[#888888] w-20 shrink-0">Priority</span>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold capitalize border ${
+                        aiResult.priority === "critical" ? "bg-[#C94A4A]/20 text-[#C94A4A] border-[#C94A4A]/40" :
+                        aiResult.priority === "high"     ? "bg-[#D4AF37]/20 text-[#D4AF37] border-[#D4AF37]/40" :
+                        aiResult.priority === "medium"   ? "bg-[#C58A18]/20 text-[#C58A18] border-[#C58A18]/40" :
+                                                           "bg-[#888888]/20 text-[#888888] border-[#888888]/40"
                       }`}>{aiResult.priority}</span>
                     </div>
-                    <div className="pt-2 border-t border-emerald-200/50">
-                      <p className="text-[10px] font-black text-emerald-600 mb-1">📝 Description filled:</p>
-                      <p className="text-[10px] text-dark-600 leading-relaxed font-medium line-clamp-3">{aiResult.description}</p>
+                    <div className="pt-2 border-t border-[#D4AF37]/20">
+                      <p className="text-[10px] font-bold text-[#D4AF37] mb-1">📝 Description filled:</p>
+                      <p className="text-[10px] text-[#888888] leading-relaxed font-medium line-clamp-3">{aiResult.description}</p>
                     </div>
                   </div>
                 </div>
               )}
 
               {!aiAnalysing && aiResult && aiResult.lowConfidence && (
-                <div className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50 p-3 animate-float-in">
+                <div className="mt-4 border border-[#C58A18]/50 bg-[#0A0A0A] p-3 animate-float-in">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-[#C58A18] shrink-0" />
                     <div>
-                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider">Low Confidence Detection</p>
-                      <p className="text-[10px] text-amber-600/80 font-medium">
+                      <p className="text-[10px] font-bold text-[#C58A18] uppercase tracking-wider">Low Confidence Detection</p>
+                      <p className="text-[10px] text-[#888888] font-medium">
                         Detected: <strong>{aiResult.category}</strong> ({aiResult.confidence}% confidence) — please verify manually.
                       </p>
                     </div>
@@ -1289,10 +1290,10 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               )}
 
               {!aiAnalysing && aiError && (
-                <div className="mt-4 rounded-2xl border border-red-200/50 bg-red-50 p-3 animate-float-in">
+                <div className="mt-4 border border-[#C94A4A]/50 bg-[#0A0A0A] p-3 animate-float-in">
                   <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                    <p className="text-[10px] font-semibold text-red-600">
+                    <AlertCircle className="w-4 h-4 text-[#C94A4A] shrink-0" />
+                    <p className="text-[10px] font-semibold text-[#C94A4A]">
                       AI analysis unavailable — please fill category &amp; description manually.
                     </p>
                   </div>
@@ -1302,26 +1303,30 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
           </div>
 
           {/* Priority + Emergency Switcher */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-theme-50/30 p-6 rounded-2xl border border-theme-100/20 items-center justify-between">
+          {/* Priority + Emergency Switcher */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0A0A0A] p-6 border border-[#D4AF37]/30 items-center justify-between">
             <div>
-              <label className="block text-xs font-bold text-dark-650 uppercase tracking-widest mb-2">
+              <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-2.5">
                 {t("generalPriority")}
               </label>
-              <div className="flex space-x-2">
-                {["low", "medium", "high", "critical"].map((prio) => (
-                  <button
-                    key={prio}
-                    type="button"
-                    onClick={() => setPriority(prio)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all border cursor-pointer ${
-                      priority === prio
-                        ? "bg-dark-800 border-dark-900 text-white shadow-sm"
-                        : "bg-white border-theme-200/50 text-dark-600 hover:bg-theme-50/50"
-                    }`}
-                  >
-                    {prio}
-                  </button>
-                ))}
+              <div className="flex flex-wrap gap-2">
+                {["low", "medium", "high", "critical"].map((prio) => {
+                  const isActive = priority === prio;
+                  return (
+                    <button
+                      key={prio}
+                      type="button"
+                      onClick={() => setPriority(prio)}
+                      className={`px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider transition-all border cursor-pointer ${
+                        isActive
+                          ? "bg-[#D4AF37] border-[#D4AF37] text-[#0A0A0A] shadow-md"
+                          : "bg-[#141414] border-[#D4AF37]/30 text-[#F2F0E4] hover:border-[#D4AF37]"
+                      }`}
+                    >
+                      {prio}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1348,33 +1353,33 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
           {/* Form Actions */}
           <div className="flex justify-end pt-4">
-            <button
+            <MagneticButton
               type="submit"
-              className="btn-theme px-6 py-3 text-sm font-bold flex items-center space-x-2 cursor-pointer shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
+              className="btn-art-deco-primary gold-shine-effect px-7 py-3 text-sm font-bold uppercase tracking-wider flex items-center space-x-2 cursor-pointer shadow-lg bg-[#D4AF37] text-[#0A0A0A]"
             >
-              <Check className="h-4.5 w-4.5" />
+              <Check className="h-4.5 w-4.5 text-[#0A0A0A]" />
               <span>{t("submitTicket")}</span>
-            </button>
+            </MagneticButton>
           </div>
         </form>
       </div>
 
       {/* OTP Verification Modal */}
       {showOtpModal && (
-        <div className="fixed inset-0 bg-dark-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-theme-200/50 animate-float-in">
+        <div className="fixed inset-0 bg-[#0A0A0A]/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141414] max-w-md w-full overflow-hidden shadow-2xl border border-[#D4AF37]/50 animate-float-in">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-theme-500 to-theme-600 px-6 py-5 text-white flex items-center justify-between">
+            <div className="bg-[#0A0A0A] border-b border-[#D4AF37]/40 px-6 py-5 text-[#F2F0E4] flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <KeyRound className="h-5.5 w-5.5 text-white" />
-                <h3 className="font-black text-sm tracking-wider uppercase">
+                <KeyRound className="h-5.5 w-5.5 text-[#D4AF37]" />
+                <h3 className="font-artdeco-heading text-sm tracking-widest uppercase text-[#F2F0E4]">
                   {t("otpVerification") || "OTP Verification"}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowOtpModal(false)}
-                className="p-1 px-[5.5px] rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className="p-1 rounded text-[#888888] hover:text-[#F2F0E4] hover:bg-[#141414] transition-colors cursor-pointer"
               >
                 <X className="h-5.5 w-5.5" />
               </button>
@@ -1397,13 +1402,13 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                     ? "bg-emerald-50 border-emerald-100 text-emerald-800" 
                     : smsStatusType === "error" 
                       ? "bg-amber-50 border-amber-100 text-amber-850" 
-                      : "bg-theme-50/50 border-theme-100/30 text-theme-850 animate-pulse"
+                      : "bg-[#071A2B]/5 border-[#D4AF6A]/30 text-[#071A2B] animate-pulse"
                 }`}>
                   {smsStatusMessage}
                 </div>
               )}
 
-              {/* Segmented 4-Digit Inputs */}
+              {/* Segmented 6-Digit Inputs */}
               <div className="flex justify-center items-center gap-3">
                 {otpDigits.map((digit, idx) => (
                   <input
@@ -1416,7 +1421,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                     onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                     onPaste={idx === 0 ? handleOtpPaste : undefined}
-                    className="w-14 h-14 text-center text-2xl font-extrabold border border-theme-200 rounded-2xl bg-theme-50/10 focus:bg-white focus:ring-2 focus:ring-theme-400 focus:outline-none transition-all text-dark-850"
+                    className="w-12 h-14 text-center text-2xl font-artdeco-heading border border-[#D4AF37]/40 bg-[#0A0A0A] focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37] focus:outline-none transition-all text-[#D4AF37]"
                     autoFocus={idx === 0}
                   />
                 ))}
@@ -1424,13 +1429,13 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
               {/* Error Message */}
               {otpError && (
-                <div className="text-center text-xs font-bold text-red-650 bg-red-50 py-2 rounded-xl border border-red-100">
+                <div className="text-center text-xs font-bold text-[#C94A4A] bg-[#C94A4A]/10 py-2 border border-[#C94A4A]/40">
                   {otpError}
                 </div>
               )}
 
               {/* Resend / Timer */}
-              <div className="text-center flex justify-center items-center gap-1.5 text-xs text-dark-500 font-semibold">
+              <div className="text-center flex justify-center items-center gap-1.5 text-xs text-[#888888] font-semibold">
                 {otpTimer > 0 ? (
                   <span>
                     {t("resendIn", { time: otpTimer }) || `Resend code in ${otpTimer}s`}
@@ -1439,7 +1444,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                   <button
                     type="button"
                     onClick={handleSendOtp}
-                    className="text-theme-600 hover:text-theme-700 font-black flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                    className="text-[#D4AF37] hover:text-[#F2F0E4] font-bold flex items-center gap-1 cursor-pointer transition-all uppercase tracking-wider"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     <span>{t("resendCode") || "Resend Code"}</span>
@@ -1447,14 +1452,13 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                 )}
               </div>
 
-
               {/* Actions */}
               <button
                 type="button"
                 onClick={handleOtpVerify}
-                className="w-full bg-gradient-to-r from-theme-500 to-theme-600 hover:from-theme-600 hover:to-theme-700 text-white font-black text-xs py-3 px-4 rounded-xl transition-all shadow-lg shadow-theme-500/25 flex items-center justify-center space-x-2 cursor-pointer uppercase tracking-wider"
+                className="btn-art-deco-primary w-full py-3.5 px-4 font-bold text-xs uppercase tracking-widest flex items-center justify-center space-x-2 cursor-pointer shadow-lg bg-[#D4AF37] text-[#0A0A0A]"
               >
-                <span>{t("verifySubmit") || "Verify & Submit"}</span>
+                <span className="font-artdeco-heading text-[#0A0A0A]">{t("verifySubmit") || "Verify & Submit"}</span>
               </button>
             </div>
           </div>
@@ -1464,17 +1468,17 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
       {/* ── Live Camera Modal (Photo + Video Tabs) ── */}
       {showCameraModal && (
-        <div className="fixed inset-0 bg-dark-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass rounded-3xl overflow-hidden max-w-lg w-full border border-theme-200/30 flex flex-col relative animate-float-in shadow-2xl">
+        <div className="fixed inset-0 bg-[#0A0A0A]/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141414] overflow-hidden max-w-lg w-full border border-[#D4AF37]/50 flex flex-col relative animate-float-in shadow-2xl">
 
             {/* Header */}
-            <div className="flex justify-between items-center p-5 border-b border-dark-100/10">
-              <div className="flex items-center space-x-2">
+            <div className="flex justify-between items-center p-5 border-b border-[#D4AF37]/30 bg-[#0A0A0A]">
+              <div className="flex items-center space-x-2.5">
                 {cameraModalTab === "photo"
-                  ? <Camera className="h-5 w-5 text-theme-500 animate-pulse" />
-                  : <Film className="h-5 w-5 text-red-500 animate-pulse" />
+                  ? <Camera className="h-5 w-5 text-[#D4AF37] animate-pulse" />
+                  : <Film className="h-5 w-5 text-[#D4AF37] animate-pulse" />
                 }
-                <span className="font-bold text-sm tracking-tight text-white font-sans">
+                <span className="font-artdeco-heading text-sm uppercase tracking-widest text-[#F2F0E4]">
                   {cameraModalTab === "photo" ? "Capture Photo Evidence" : "Record Video Evidence"}
                 </span>
               </div>
@@ -1486,21 +1490,21 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                   setIsVideoRecording(false);
                   setVideoRecordingTime(0);
                 }}
-                className="p-1 text-dark-400 hover:text-dark-200 rounded-full hover:bg-dark-50/10 cursor-pointer"
+                className="p-1 text-[#888888] hover:text-[#F2F0E4] hover:bg-[#141414] transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Photo / Video Tab Switcher */}
-            <div className="flex border-b border-dark-100/10">
+            <div className="flex border-b border-[#D4AF37]/30 bg-[#0A0A0A]">
               <button
                 type="button"
                 onClick={() => { setCameraModalTab("photo"); }}
-                className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer border-0 ${
+                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer border-0 ${
                   cameraModalTab === "photo"
-                    ? "bg-theme-500/20 text-theme-300 border-b-2 border-theme-400"
-                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                    ? "bg-[#D4AF37] text-[#0A0A0A]"
+                    : "text-[#888888] hover:text-[#F2F0E4] hover:bg-[#141414]"
                 }`}
               >
                 <Camera className="h-3.5 w-3.5" /> Photo
@@ -1508,10 +1512,10 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               <button
                 type="button"
                 onClick={() => { setCameraModalTab("video"); }}
-                className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer border-0 ${
+                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer border-0 ${
                   cameraModalTab === "video"
-                    ? "bg-red-500/20 text-red-300 border-b-2 border-red-400"
-                    : "text-white/40 hover:text-white/70 hover:bg-white/5"
+                    ? "bg-[#D4AF37] text-[#0A0A0A]"
+                    : "text-[#888888] hover:text-[#F2F0E4] hover:bg-[#141414]"
                 }`}
               >
                 <Video className="h-3.5 w-3.5" /> Video
@@ -1519,7 +1523,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
             </div>
 
             {/* Live Camera Feed */}
-            <div className="relative bg-black aspect-video flex items-center justify-center overflow-hidden">
+            <div className="relative bg-[#0A0A0A] aspect-video flex items-center justify-center overflow-hidden border-b border-[#D4AF37]/30">
               <video
                 ref={videoRef}
                 autoPlay
@@ -1529,18 +1533,18 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               />
               {/* Camera loading spinner */}
               {!cameraStream && !cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50 space-y-2">
-                  <div className="w-8 h-8 border-4 border-theme-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs font-semibold">Initializing camera stream...</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-[#D4AF37]/70 space-y-2">
+                  <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs font-mono tracking-wider">INITIALIZING CAMERA...</span>
                 </div>
               )}
               {/* Camera unavailable — show upload buttons right here */}
               {cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4 px-8 text-center bg-black/90">
-                  <div className="text-5xl">📷</div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4 px-8 text-center bg-[#0A0A0A]/95">
+                  <div className="text-4xl text-[#D4AF37]">📷</div>
                   <div>
-                    <p className="text-sm font-black text-white mb-1">Camera Not Accessible</p>
-                    <p className="text-[11px] text-white/50 leading-relaxed">
+                    <p className="text-sm font-artdeco-heading text-[#F2F0E4] mb-1 uppercase tracking-wider">Camera Not Accessible</p>
+                    <p className="text-[11px] text-[#888888] leading-relaxed">
                       Permission denied or camera is in use by another app.
                     </p>
                   </div>
@@ -1553,7 +1557,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                         setShowCameraModal(false);
                         fileInputRef.current?.click();
                       }}
-                      className="w-full py-3 bg-theme-500 hover:bg-theme-600 text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border-0 shadow-lg"
+                      className="w-full py-3 bg-[#D4AF37] hover:bg-[#F2F0E4] text-[#0A0A0A] font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer border-0 shadow-lg"
                     >
                       <Camera className="h-4 w-4" />
                       Upload Photo from Device
@@ -1565,7 +1569,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                         setShowCameraModal(false);
                         videoInputRef.current?.click();
                       }}
-                      className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border-0 shadow-lg"
+                      className="w-full py-3 bg-[#141414] hover:bg-[#D4AF37] hover:text-[#0A0A0A] text-[#D4AF37] font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#D4AF37]/40 shadow-lg"
                     >
                       <Video className="h-4 w-4" />
                       Upload Video from Device
@@ -1575,7 +1579,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
               )}
               {/* Recording indicator overlay */}
               {isVideoRecording && (
-                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-red-600/90 text-white text-xs font-black px-2.5 py-1 rounded-full">
+                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-[#C94A4A] text-white text-xs font-bold px-3 py-1 border border-white/20">
                   <span className="w-2 h-2 bg-white rounded-full animate-ping" />
                   REC {Math.floor(videoRecordingTime / 60)}:{String(videoRecordingTime % 60).padStart(2, "0")}
                 </div>
@@ -1584,7 +1588,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
 
             {/* Actions — hidden when camera is unavailable (buttons are shown inline above) */}
             {!cameraError && (
-            <div className="p-5 flex flex-col gap-3 font-sans">
+            <div className="p-5 flex flex-col gap-3">
               {cameraModalTab === "photo" ? (
                 /* ─ Photo Actions ─ */
                 <>
@@ -1592,9 +1596,9 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                     type="button"
                     onClick={handleCapture}
                     disabled={!cameraStream}
-                    className="w-full py-3.5 bg-theme-500 hover:bg-theme-600 text-white font-bold rounded-full text-sm transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer border-0"
+                    className="w-full py-3 bg-[#D4AF37] hover:bg-[#F2F0E4] text-[#0A0A0A] font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer border-0 shadow-lg"
                   >
-                    <Camera className="h-4.5 w-4.5" />
+                    <Camera className="h-4 w-4" />
                     Capture Evidence Photo
                   </button>
                   <button
@@ -1604,7 +1608,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                       setShowCameraModal(false);
                       fileInputRef.current?.click();
                     }}
-                    className="w-full py-2.5 bg-dark-800 hover:bg-dark-700 text-white font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center border-0"
+                    className="w-full py-2.5 bg-[#0A0A0A] hover:bg-[#D4AF37] hover:text-[#0A0A0A] text-[#D4AF37] font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer text-center border border-[#D4AF37]/40"
                   >
                     📁 Upload Image from Device Instead
                   </button>
@@ -1617,18 +1621,18 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                       type="button"
                       onClick={startVideoRecording}
                       disabled={!cameraStream}
-                      className="w-full py-3.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-full text-sm transition-all flex items-center justify-center gap-2 shadow-md shadow-red-900/30 hover:shadow-lg disabled:opacity-50 cursor-pointer border-0"
+                      className="w-full py-3 bg-[#C94A4A] hover:bg-red-500 text-white font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer border-0 shadow-lg"
                     >
-                      <Video className="h-4.5 w-4.5" />
+                      <Video className="h-4 w-4" />
                       Start Video Recording
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={stopVideoRecording}
-                      className="w-full py-3.5 bg-dark-800 hover:bg-dark-700 text-white font-bold rounded-full text-sm transition-all flex items-center justify-center gap-2 shadow-md animate-pulse cursor-pointer border-0"
+                      className="w-full py-3 bg-[#0A0A0A] text-[#C94A4A] border border-[#C94A4A] font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 animate-pulse cursor-pointer"
                     >
-                      <span className="w-3 h-3 bg-red-500 rounded-sm" />
+                      <span className="w-3 h-3 bg-[#C94A4A]" />
                       Stop &amp; Save Recording ({Math.floor(videoRecordingTime / 60)}:{String(videoRecordingTime % 60).padStart(2, "0")})
                     </button>
                   )}
@@ -1639,7 +1643,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                       setShowCameraModal(false);
                       videoInputRef.current?.click();
                     }}
-                    className="w-full py-2.5 bg-dark-800 hover:bg-dark-700 text-white font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center border-0"
+                    className="w-full py-2.5 bg-[#0A0A0A] hover:bg-[#D4AF37] hover:text-[#0A0A0A] text-[#D4AF37] font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer text-center border border-[#D4AF37]/40"
                   >
                     📁 Upload Video from Device Instead
                   </button>
@@ -1655,7 +1659,7 @@ export default function ReportIssue({ user, onAddIssue, lang = "en" }) {
                   setIsVideoRecording(false);
                   setVideoRecordingTime(0);
                 }}
-                className="w-full py-2 text-white/40 hover:text-white/70 font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center border-0 bg-transparent"
+                className="w-full py-2 text-[#888888] hover:text-[#F2F0E4] font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer text-center border-0 bg-transparent"
               >
                 Cancel
               </button>

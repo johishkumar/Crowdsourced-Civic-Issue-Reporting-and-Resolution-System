@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
+import twilio from 'twilio';
 
 const app = express();
 app.use(cors());
@@ -37,7 +39,9 @@ const userSchema = new mongoose.Schema({
     state: { type: String, default: 'Jharkhand' }
   },
   language: { type: String, default: 'en' },
-  notificationsEnabled: { type: Boolean, default: true }
+  notificationsEnabled: { type: Boolean, default: true },
+  avatar: { type: String, default: '' },
+  providers: { type: Map, of: String, default: {} },
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
@@ -204,6 +208,168 @@ async function seedUsers() {
     console.error('Error seeding users:', err);
   }
 }
+
+// ================= SOCIAL AUTH (Google & Apple) =================
+
+// POST /api/auth/social-signin
+// Finds or creates a user in MongoDB based on social provider identity.
+app.post('/api/auth/social-signin', async (req, res) => {
+  try {
+    const { provider, providerId, email, name, avatar, role } = req.body;
+
+    if (!provider || !providerId || !email) {
+      return res.status(400).json({ success: false, message: 'Missing required social auth fields.' });
+    }
+
+    // Build a stable email for Apple private relay addresses
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Try to find existing user by provider+providerId OR email
+    let user = await User.findOne({
+      $or: [
+        { [`providers.${provider}`]: providerId },
+        { email: normalizedEmail }
+      ]
+    });
+
+    if (user) {
+      // Update avatar / name if changed
+      if (avatar && user.avatar !== avatar) user.avatar = avatar;
+      if (name && user.name !== name && !user.name?.startsWith('User ')) user.name = name;
+      // Store provider link if not already linked
+      if (!user.providers) user.providers = {};
+      user.providers[provider] = providerId;
+      await user.save();
+    } else {
+      // Create new user
+      user = await User.create({
+        name: name || email.split('@')[0],
+        email: normalizedEmail,
+        password: Math.random().toString(36).slice(-12), // unusable random password
+        phone: '',
+        role: role || 'citizen',
+        avatar: avatar || '',
+        points: 100,
+        badges: [],
+        location: { city: 'Khunti', state: 'Jharkhand' },
+        providers: { [provider]: providerId },
+      });
+      console.log(`[Social Auth] New ${provider} user created: ${normalizedEmail}`);
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        avatar: user.avatar || avatar || '',
+        role: user.role,
+        department: user.department || '',
+        organization: user.organization || '',
+        points: user.points,
+        badges: user.badges,
+        location: user.location,
+        language: user.language || 'en',
+        notificationsEnabled: user.notificationsEnabled !== false,
+      }
+    });
+  } catch (err) {
+    console.error('[social-signin] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ================= TWILIO VERIFY OTP ROUTES =================
+
+
+const getTwilioClient = () => {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  if (accountSid && authToken && accountSid.startsWith('AC')) {
+    return twilio(accountSid, authToken);
+  }
+  return null;
+};
+
+// POST /api/auth/send-mobile-otp
+app.post('/api/auth/send-mobile-otp', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: 'Phone number is required.' });
+
+    const client = getTwilioClient();
+    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+
+    if (!client || !serviceSid) {
+      console.log(`[DEV] Twilio Verify not configured. Phone: ${phone}`);
+      return res.status(200).json({ success: true, message: 'OTP sent (dev mode — check server console).' });
+    }
+
+    await client.verify.v2.services(serviceSid).verifications.create({ to: phone, channel: 'sms' });
+    res.status(200).json({ success: true, message: 'OTP sent successfully.' });
+  } catch (err) {
+    console.error('[send-mobile-otp] Error:', err.message);
+    if (err.code === 60203 || (err.message && err.message.includes('unverified'))) {
+      return res.status(403).json({ success: false, message: 'Number not verified in Twilio trial account. Visit console.twilio.com → Verified Caller IDs.' });
+    }
+    res.status(500).json({ success: false, message: err.message || 'Failed to send OTP.' });
+  }
+});
+
+// POST /api/auth/verify-mobile-otp
+app.post('/api/auth/verify-mobile-otp', async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ success: false, message: 'Phone and OTP are required.' });
+
+    const client = getTwilioClient();
+    const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+
+    if (!client || !serviceSid) {
+      return res.status(500).json({ success: false, message: 'Twilio Verify is not configured on the server.' });
+    }
+
+    const check = await client.verify.v2.services(serviceSid).verificationChecks.create({ to: phone, code: otp });
+
+    if (check.status !== 'approved') {
+      return res.status(400).json({ success: false, message: 'Incorrect or expired OTP. Please try again.' });
+    }
+
+    // Find or create user by phone
+    let user = await User.findOne({ phone });
+    if (!user) {
+      user = await User.create({
+        name: `User ${phone.slice(-4)}`,
+        email: `phone_${phone.replace(/\+/g, '')}@civic.local`,
+        password: Math.random().toString(36).slice(-10),
+        phone,
+        role: 'citizen',
+        points: 100,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful.',
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        points: user.points,
+        badges: user.badges,
+        location: user.location,
+        language: user.language,
+      },
+    });
+  } catch (err) {
+    console.error('[verify-mobile-otp] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message || 'Verification failed.' });
+  }
+});
 
 // ================= USER & AUTH ROUTES =================
 

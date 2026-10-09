@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Users, Shield, Globe, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, X, Fingerprint, Settings, Sun, Moon, Radio, Sparkles, CheckCircle2, TrendingUp, Activity, Award, Zap, Bot } from "lucide-react";
 import { sendSms } from "./utils/smsHelper";
 import SmsSettingsModal from "./components/SmsSettingsModal";
+import FirebasePhoneAuthModal from "./components/FirebasePhoneAuthModal";
 
 function Jharkhand24x7NewsChannelBanner() {
   const [timeString, setTimeString] = useState("");
@@ -54,14 +55,14 @@ function Jharkhand24x7NewsChannelBanner() {
 
   return (
     <div className="hidden md:flex md:col-span-5 relative flex-col justify-between text-white overflow-hidden bg-slate-950 border-r-2 border-red-600 select-none min-h-[580px]">
-      
+
       {/* NEWS STUDIO BROADCAST BACKDROP */}
       <div className="absolute inset-0 z-0 bg-slate-950">
         {/* Newsroom Red/Blue Studio Gradients */}
         <div className="absolute inset-0 bg-gradient-to-br from-red-950 via-slate-950 to-blue-950 opacity-90" />
-        
+
         {/* Animated Scanlines */}
-        <div 
+        <div
           className="absolute inset-0 opacity-20 pointer-events-none"
           style={{
             backgroundImage: `linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px)`,
@@ -76,7 +77,7 @@ function Jharkhand24x7NewsChannelBanner() {
       {/* TOP BAR: TV NEWS CHANNEL LOGO & LIVE STAMP */}
       <div className="relative z-10 p-3 bg-gradient-to-b from-black via-black/90 to-transparent border-b-2 border-red-600">
         <div className="flex items-center justify-between">
-          
+
           {/* TV Channel Brand Stamp */}
           <div className="flex items-center gap-2">
             {/* 3D Shiny Red TV Logo Box */}
@@ -118,10 +119,10 @@ function Jharkhand24x7NewsChannelBanner() {
 
       {/* CENTER: BOLD TV NEWS GRAPHIC OVERLAY */}
       <div className="relative z-10 my-auto px-4 py-2 space-y-3">
-        
+
         {/* Main TV Screen Frame */}
         <div className="relative rounded-xl bg-slate-900/90 border-2 border-red-600 p-4 shadow-[0_0_40px_rgba(220,38,38,0.4)] overflow-hidden">
-          
+
           {/* Corner Studio Camera Badge */}
           <div className="flex items-center justify-between mb-2 border-b border-white/10 pb-2">
             <span className="px-2.5 py-0.5 bg-red-600 text-white text-[9.5px] font-black tracking-widest uppercase rounded shadow">
@@ -157,7 +158,7 @@ function Jharkhand24x7NewsChannelBanner() {
 
       {/* BOTTOM FOOTER: DUAL NEWS TICKER BARS (TV STYLE) */}
       <div className="relative z-10 bg-black border-t-2 border-red-600">
-        
+
         {/* Top Ticker: Yellow Breaking Strip */}
         <div className="bg-amber-400 text-slate-950 font-black text-[10px] py-1 px-3 flex items-center gap-2 shadow">
           <span className="bg-red-600 text-white px-2 py-0.5 text-[8.5px] uppercase tracking-wider rounded font-black shrink-0">
@@ -209,19 +210,25 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
   const [emailStatus, setEmailStatus] = useState("idle");
   const [emailMessage, setEmailMessage] = useState("");
 
-  // Mock Authentication States
-  const [activeMockAuth, setActiveMockAuth] = useState(null); // "Google" | "Apple" | "Phone" | null
+  // ── Firebase Phone Auth Modal state ──────────────────────────────────────────
+  // Controls whether the real Firebase OTP modal is open.
+  const [firebasePhoneOpen, setFirebasePhoneOpen] = useState(false);
+
+  // Mock Authentication States (Google / Apple — unchanged)
+  const [activeMockAuth, setActiveMockAuth] = useState(null); // "Google" | "Apple" | null
   const [mockEmail, setMockEmail] = useState("");
   const [mockPassword, setMockPassword] = useState("");
   const [mockPhone, setMockPhone] = useState("");
+  const [mockCountryCode, setMockCountryCode] = useState("+91");
   const [mockOtp, setMockOtp] = useState("");
   const [mockStep, setMockStep] = useState(1);
   const [mockError, setMockError] = useState("");
   const [mockCountdown, setMockCountdown] = useState(30);
   const [mockScanStatus, setMockScanStatus] = useState("idle"); // "idle" | "scanning" | "success"
   const [showSmsSettings, setShowSmsSettings] = useState(false);
-  const [generatedLoginOtp, setGeneratedLoginOtp] = useState("");
-  const [generatedForgotOtp, setGeneratedForgotOtp] = useState("");
+  const [generatedLoginOtp, setGeneratedLoginOtp] = useState(""); // fallback only
+  const [generatedForgotOtp, setGeneratedForgotOtp] = useState(""); // fallback only
+  const [realSmsSent, setRealSmsSent] = useState(false); // true when backend confirmed SMS sent
   const [smsSending, setSmsSending] = useState(false);
   const [smsStatusMessage, setSmsStatusMessage] = useState("");
 
@@ -335,57 +342,130 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
     return () => clearInterval(timer);
   }, [activeForgotModal, forgotStep, forgotCountdown]);
 
-  const sendLoginOtp = async (phoneVal) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedLoginOtp(code);
+  // Build E.164 phone number from country code + local number
+  const buildFullPhone = (countryCode, localPhone) => {
+    const digits = localPhone.replace(/\D/g, "");
+    return `${countryCode}${digits}`;
+  };
+
+  const sendLoginOtp = async (phoneVal, countryCode) => {
+    const fullPhone = buildFullPhone(countryCode || mockCountryCode, phoneVal);
     setMockOtp("");
     setMockCountdown(30);
     setMockError("");
+    setRealSmsSent(false);
     setSmsStatusType("info");
-    setSmsStatusMessage(`Sending real OTP to +91 ${phoneVal}...`);
-    console.log(`[SMS Gateway] Sent Login OTP ${code} to +91 ${phoneVal}`);
+    setSmsStatusMessage(`Sending OTP to ${fullPhone}...`);
     setSmsSending(true);
 
     try {
-      const res = await sendSms(phoneVal, `Your CivicReport Login verification code is: ${code}. Valid for 5 minutes.`);
-      if (res.success) {
+      // First try backend (Twilio-powered) — the reliable path
+      const res = await fetch("/api/auth/send-mobile-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: fullPhone }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
         setSmsStatusType("success");
-        setSmsStatusMessage("Real SMS sent successfully!");
+        setSmsStatusMessage(`✓ OTP sent to ${fullPhone} via SMS!`);
+        setRealSmsSent(true);
+        setGeneratedLoginOtp(""); // backend owns the OTP now
+        return;
+      }
+      // Backend returned an error (e.g. rate limit)
+      const backendError = data.message || "Backend error";
+      console.warn("[Backend OTP] Failed:", backendError);
+      // Fallback: try browser-side SMS gateway
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedLoginOtp(code);
+      const smsRes = await sendSms(phoneVal, `Your CivicReport Login code: ${code}. Valid 5 minutes.`);
+      if (smsRes.success) {
+        setSmsStatusType("success");
+        setSmsStatusMessage("Real SMS sent via gateway!");
+        setRealSmsSent(true);
       } else {
         setSmsStatusType("error");
-        setSmsStatusMessage(`SMS failed: ${res.error}. (Use simulated code)`);
+        setSmsStatusMessage(`SMS failed: ${smsRes.error}. (Use simulated code)`);
+        setRealSmsSent(false);
       }
     } catch (e) {
+      // Backend offline – fallback to client-side simulation
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedLoginOtp(code);
       setSmsStatusType("error");
-      setSmsStatusMessage(`Network error: ${e.message}. (Use simulated code)`);
+      setSmsStatusMessage(`Could not reach server. (Use simulated code)`);
+      setRealSmsSent(false);
     } finally {
       setSmsSending(false);
     }
   };
 
+  // Verify OTP against the backend (which stored it) or fallback simulated OTP
+  const verifyLoginOtp = async (enteredOtp) => {
+    const fullPhone = buildFullPhone(mockCountryCode, mockPhone);
+    if (realSmsSent && generatedLoginOtp === "") {
+      // Backend owns the OTP, verify via API
+      try {
+        const res = await fetch("/api/auth/verify-mobile-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: fullPhone, otp: enteredOtp }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) return { ok: true, user: data.user };
+        return { ok: false, message: data.message || "Incorrect OTP." };
+      } catch (e) {
+        return { ok: false, message: "Network error. Please try again." };
+      }
+    }
+    // Fallback: compare against locally generated code
+    if (enteredOtp === generatedLoginOtp) return { ok: true, user: null };
+    return { ok: false, message: "Incorrect OTP verification code." };
+  };
+
   const sendForgotOtp = async (phoneVal) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedForgotOtp(code);
+    const fullPhone = buildFullPhone("+91", phoneVal);
     setForgotOtp("");
     setForgotCountdown(30);
     setForgotError("");
+    setRealSmsSent(false);
     setSmsStatusType("info");
-    setSmsStatusMessage(`Sending real reset OTP to +91 ${phoneVal}...`);
-    console.log(`[SMS Gateway] Sent Reset OTP ${code} to +91 ${phoneVal}`);
+    setSmsStatusMessage(`Sending reset OTP to ${fullPhone}...`);
     setSmsSending(true);
 
     try {
-      const res = await sendSms(phoneVal, `Your CivicReport Password Reset code is: ${code}. Valid for 5 minutes.`);
-      if (res.success) {
+      const res = await fetch("/api/auth/send-mobile-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: fullPhone }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
         setSmsStatusType("success");
-        setSmsStatusMessage("Real SMS sent successfully!");
+        setSmsStatusMessage(`✓ Reset OTP sent to ${fullPhone} via SMS!`);
+        setRealSmsSent(true);
+        setGeneratedForgotOtp("");
+        return;
+      }
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedForgotOtp(code);
+      const smsRes = await sendSms(phoneVal, `Your CivicReport Reset code: ${code}. Valid 5 minutes.`);
+      if (smsRes.success) {
+        setSmsStatusType("success");
+        setSmsStatusMessage("Reset SMS sent via gateway!");
+        setRealSmsSent(true);
       } else {
         setSmsStatusType("error");
-        setSmsStatusMessage(`SMS failed: ${res.error}. (Use simulated code)`);
+        setSmsStatusMessage(`SMS failed: ${smsRes.error}. (Use simulated code)`);
+        setRealSmsSent(false);
       }
     } catch (e) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedForgotOtp(code);
       setSmsStatusType("error");
-      setSmsStatusMessage(`Network error: ${e.message}. (Use simulated code)`);
+      setSmsStatusMessage(`Server unreachable. (Use simulated code)`);
+      setRealSmsSent(false);
     } finally {
       setSmsSending(false);
     }
@@ -489,112 +569,201 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
     setLoading(false);
   };
 
+  // Prevent duplicate concurrent social login requests
+  const [socialLoading, setSocialLoading] = useState(null); // "Google" | "Apple" | null
+
   const handleSocialLogin = async (provider) => {
+    if (socialLoading) return; // block duplicate clicks
+
+    // ─── GOOGLE ────────────────────────────────────────────────────────────────
     if (provider === "Google") {
       const client_id = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
-      const isDummyClient = !client_id || client_id.includes("dummy");
-      
+      const isDummyClient = !client_id || client_id.trim() === "";
+
       if (isDummyClient) {
-        // Trigger mock Google Sign-in modal
-        setMockEmail("");
-        setMockStep(2);
-        setMockError("");
+        // Fallback: mock modal
+        setMockEmail(""); setMockStep(2); setMockError("");
         setActiveMockAuth("Google");
         return;
       }
 
-      setLoading(true);
+      setSocialLoading("Google");
       try {
-        if (typeof window.google === "undefined" || !window.google.accounts) {
-          throw new Error("Google Identity SDK is not loaded yet. Please try again in a moment.");
+        if (typeof window.google === "undefined" || !window.google?.accounts?.oauth2) {
+          throw new Error("Google Identity SDK not loaded. Retrying…");
         }
 
-        const tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: client_id,
-          scope: "https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
-          callback: async (tokenResponse) => {
-            if (tokenResponse.error) {
-              setLoading(false);
-              alert(`Authentication cancelled or failed: ${tokenResponse.error_description || tokenResponse.error}`);
-              return;
-            }
-
-            try {
-              // Retrieve user profile data using Google Access Token
-              const res = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${tokenResponse.access_token}`);
-              if (!res.ok) {
-                throw new Error("Failed to retrieve profile data from Google.");
+        await new Promise((resolve, reject) => {
+          const tokenClient = window.google.accounts.oauth2.initTokenClient({
+            client_id,
+            scope: "openid profile email",
+            callback: async (tokenResponse) => {
+              if (tokenResponse.error) {
+                reject(new Error(tokenResponse.error_description || tokenResponse.error));
+                return;
               }
-              const googleUser = await res.json();
-              
-              if (!googleUser.email || !googleUser.sub) {
-                throw new Error("Invalid token payload returned from Google API.");
-              }
+              try {
+                // 1. Fetch profile from Google
+                const profileRes = await fetch(
+                  `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${tokenResponse.access_token}`
+                );
+                if (!profileRes.ok) throw new Error("Failed to fetch Google profile.");
+                const googleUser = await profileRes.json();
+                if (!googleUser.email || !googleUser.sub) throw new Error("Incomplete profile from Google.");
 
-              const demo = credentials[role];
-              let authenticatedUser;
-              
-              if (role === "citizen") {
-                authenticatedUser = {
+                // 2. Persist / upsert user in MongoDB via backend
+                let persistedUser = null;
+                try {
+                  const backendRes = await fetch("/api/auth/social-signin", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      provider: "google",
+                      providerId: googleUser.sub,
+                      email: googleUser.email,
+                      name: googleUser.name,
+                      avatar: googleUser.picture,
+                      role,
+                    }),
+                  });
+                  if (backendRes.ok) {
+                    const bd = await backendRes.json();
+                    if (bd.success && bd.user) persistedUser = bd.user;
+                  }
+                } catch (_) { /* backend offline — use client-side object */ }
+
+                const authenticatedUser = persistedUser || {
                   id: googleUser.sub,
-                  name: googleUser.name || "Google Citizen",
+                  name: googleUser.name || "Google User",
                   email: googleUser.email,
                   avatar: googleUser.picture,
-                  phone: demo.phone,
-                  role: "citizen",
-                  points: 250,
-                  badges: [
-                    { id: "1", name: "First Reporter", description: "Reported first issue", icon: "🏆", earnedAt: new Date() },
-                    { id: "2", name: "Community Hero", description: "Active community member", icon: "🦸", earnedAt: new Date() }
-                  ],
+                  phone: "",
+                  role,
+                  points: 100,
+                  badges: [],
                   language: lang,
                   notificationsEnabled: true,
-                  location: { city: "Khunti", state: "Jharkhand" }
+                  location: { city: "Khunti", state: "Jharkhand" },
                 };
-              } else {
-                authenticatedUser = role === "admin"
-                  ? { id: googleUser.sub, name: googleUser.name, email: googleUser.email, avatar: googleUser.picture, role: "admin", department: "Public Works", language: lang, notificationsEnabled: true }
-                  : { id: googleUser.sub, name: googleUser.name, email: googleUser.email, avatar: googleUser.picture, role: "ngo", department: "Environmental", language: lang, notificationsEnabled: true };
-              }
 
-              onLogin(authenticatedUser);
-            } catch (err) {
-              alert(`Failed to complete authentication: ${err.message}`);
-            } finally {
-              setLoading(false);
-            }
-          },
-          error_callback: (err) => {
-            setLoading(false);
-            alert(`Google Authentication error: ${err.message || "The popup was closed or authentication failed."}`);
-          }
+                onLogin({ ...authenticatedUser, language: lang, notificationsEnabled: true });
+                resolve();
+              } catch (err) { reject(err); }
+            },
+            error_callback: (err) => {
+              // User cancelled or popup blocked — don't show alert
+              if (err?.type === "popup_closed" || err?.type === "popup_failed_to_open") {
+                resolve(); // silent cancel
+              } else {
+                reject(new Error(err?.message || "Google sign-in failed."));
+              }
+            },
+          });
+          tokenClient.requestAccessToken({ prompt: "" });
+        });
+      } catch (err) {
+        console.error("[Google Auth]", err.message);
+        // If SDK failed entirely, fall back to mock
+        setMockEmail(""); setMockStep(2); setMockError(""); setActiveMockAuth("Google");
+      } finally {
+        setSocialLoading(null);
+      }
+
+      // ─── APPLE ─────────────────────────────────────────────────────────────────
+    } else if (provider === "Apple") {
+      const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID || "";
+      const appleRedirect = import.meta.env.VITE_APPLE_REDIRECT_URI || window.location.origin + "/";
+
+      if (!appleClientId) {
+        // Fallback: mock modal
+        setMockEmail(""); setMockPassword(""); setMockStep(1);
+        setMockError(""); setMockScanStatus("idle");
+        setActiveMockAuth("Apple");
+        return;
+      }
+
+      setSocialLoading("Apple");
+      try {
+        if (typeof window.AppleID === "undefined") {
+          throw new Error("Apple Sign In SDK not loaded yet. Please try again.");
+        }
+
+        // Initialize Apple SDK
+        window.AppleID.auth.init({
+          clientId: appleClientId,
+          scope: "name email",
+          redirectURI: appleRedirect,
+          state: "civic-apple-signin-" + Date.now(),
+          usePopup: true,   // popup mode — no page redirect
         });
 
-        tokenClient.requestAccessToken({ prompt: "consent" });
-      } catch (error) {
-        // Fallback to mock Google sign in if Google SDK initialization fails
-        setMockEmail("");
-        setMockStep(2);
-        setMockError("");
-        setActiveMockAuth("Google");
-        setLoading(false);
+        const data = await window.AppleID.auth.signIn();
+        // data = { authorization: { code, id_token, state }, user?: { name, email } }
+
+        const idToken = data?.authorization?.id_token;
+        if (!idToken) throw new Error("No ID token returned from Apple.");
+
+        // Decode the JWT payload (base64) — no signature verification on client
+        const payload = JSON.parse(atob(idToken.split(".")[1]));
+        const appleEmail = payload.email || (data.user?.email) || `apple_${payload.sub?.slice(0, 8)}@privaterelay.appleid.com`;
+        const appleName = data.user?.name
+          ? `${data.user.name.firstName || ""} ${data.user.name.lastName || ""}`.trim()
+          : appleEmail.split("@")[0];
+
+        // Persist / upsert user in MongoDB
+        let persistedUser = null;
+        try {
+          const backendRes = await fetch("/api/auth/social-signin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider: "apple",
+              providerId: payload.sub,
+              email: appleEmail,
+              name: appleName,
+              avatar: null,
+              role,
+              idToken,   // backend can verify this with Apple's public keys
+            }),
+          });
+          if (backendRes.ok) {
+            const bd = await backendRes.json();
+            if (bd.success && bd.user) persistedUser = bd.user;
+          }
+        } catch (_) { /* backend offline */ }
+
+        const authenticatedUser = persistedUser || {
+          id: payload.sub,
+          name: appleName || "Apple User",
+          email: appleEmail,
+          avatar: null,
+          phone: "",
+          role,
+          points: 100,
+          badges: [],
+          language: lang,
+          notificationsEnabled: true,
+          location: { city: "Khunti", state: "Jharkhand" },
+        };
+
+        onLogin({ ...authenticatedUser, language: lang, notificationsEnabled: true });
+
+      } catch (err) {
+        // err.error === "popup_closed_by_user" means user cancelled — silent
+        if (err?.error !== "popup_closed_by_user") {
+          console.error("[Apple Auth]", err.message || err);
+          alert(`Apple Sign In failed: ${err.message || "Please try again."}`);
+        }
+      } finally {
+        setSocialLoading(null);
       }
-    } else if (provider === "Apple") {
-      setMockEmail("");
-      setMockPassword("");
-      setMockStep(1);
-      setMockError("");
-      setMockScanStatus("idle");
-      setActiveMockAuth("Apple");
+
+      // ─── PHONE ─────────────────────────────────────────────────────────────────
     } else if (provider === "Phone") {
-      setMockPhone("");
-      setMockOtp("");
-      setMockStep(1);
-      setMockError("");
-      setMockCountdown(30);
-      setActiveMockAuth("Phone");
+      setFirebasePhoneOpen(true);
     }
   };
+
 
   const translate = (key) => {
     const content = {
@@ -620,31 +789,10 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
       <div className="max-w-4xl w-full relative z-10 font-sans px-4">
         {/* Theme and Language Toolbar */}
         <div className="flex items-center justify-between mb-4 animate-float-in gap-3">
-          {/* Theme Palette Swatches */}
-          <div className="flex items-center space-x-1.5 bg-white/75 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-dark-100/10 shadow-sm">
-            {themesList.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => onThemeChange && onThemeChange(t.id)}
-                title={`Theme: ${t.name}`}
-                className={`w-3.5 h-3.5 rounded-full ${t.color} cursor-pointer hover:scale-125 transition-transform duration-200 relative ${
-                  theme === t.id ? "ring-2 ring-white ring-offset-2 ring-offset-theme-500 scale-110 shadow-md" : "opacity-85"
-                }`}
-              />
-            ))}
-          </div>
+          
 
           <div className="flex items-center gap-2">
-            {/* Dark Mode Switch */}
-            <button
-              type="button"
-              onClick={onModeToggle}
-              className="p-1.5 bg-white/75 hover:bg-white border border-dark-100/10 rounded-xl cursor-pointer hover:scale-105 active:scale-95 transition-all text-dark-600 hover:text-theme-600 shadow-sm flex items-center justify-center"
-              title={mode === "light" ? "Switch to Midnight Dark" : "Switch to Light Mode"}
-            >
-              {mode === "light" ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />}
-            </button>
+            
 
             {/* Language Selector */}
             <select
@@ -661,315 +809,325 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
 
         {/* Logo and Titles */}
         <div className="text-center mb-8 animate-float-in flex flex-col items-center justify-center" style={{ animationDelay: "100ms" }}>
-          <div className="flex items-center justify-center w-20 h-20 bg-white/95 rounded-full mb-3 shadow-lg border border-theme-200/50 p-1.5 hover:rotate-6 transition-transform duration-300">
+          <div className="flex items-center justify-center w-20 h-20 bg-[#071A2B] rounded-2xl mb-3 shadow-xl border border-[#D4AF6A]/40 p-2 hover:rotate-3 transition-all duration-300">
             <img src="/assets/jharkhand_emblem.png" alt="Emblem of Jharkhand" className="w-full h-full object-contain" />
           </div>
-          <span className="text-[10px] font-black text-theme-750 tracking-widest uppercase mb-1">Government of Jharkhand • झारखंड सरकार</span>
-          <h1 className="text-2xl font-black text-dark-850 tracking-tight leading-tight">
+          <span className="text-[10px] font-extrabold text-[#9E7A3A] tracking-widest uppercase mb-1 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF6A]" />
+            Government of Jharkhand • झारखंड सरकार
+          </span>
+          <h1 className="text-2xl md:text-3xl font-artdeco-heading font-extrabold text-[#D4AF37] tracking-wider leading-tight drop-shadow-[0_2px_12px_rgba(212,175,55,0.4)]">
             Jharkhand Civic Pragati Portal
           </h1>
-          <p className="text-dark-600 font-bold text-[10.5px] mt-0.5">
-            Official Civic Engagement & Quick Issue Resolution Dashboard
+          <p className="text-[#F2F0E4]/80 font-medium text-xs mt-1.5 tracking-wide">
+            Official Civic Engagement &amp; Quick Issue Resolution Digital Command Center
           </p>
-          {/* Traditional ornamental divider */}
+          {/* Champagne gold ornamental divider */}
           <div className="flex items-center justify-center mt-3 gap-2">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent to-theme-350" />
-            <div className="w-1.5 h-1.5 rounded-full bg-theme-400" />
-            <div className="w-1 h-1 rounded-full bg-theme-300" />
-            <div className="w-1.5 h-1.5 rounded-full bg-theme-400" />
-            <div className="h-px w-12 bg-gradient-to-l from-transparent to-theme-350" />
+            <div className="h-px w-16 bg-gradient-to-r from-transparent via-[#D4AF6A] to-[#D4AF6A]" />
+            <div className="w-2 h-2 rotate-45 bg-[#D4AF6A]" />
+            <div className="h-px w-16 bg-gradient-to-l from-transparent via-[#D4AF6A] to-[#D4AF6A]" />
           </div>
         </div>
 
         {/* Auth Box */}
-        <div className="glass rounded-3xl shadow-xl overflow-hidden animate-float-in border border-theme-100/30 hover:border-theme-350/40 hover:shadow-2xl transition-all duration-500 grid grid-cols-1 md:grid-cols-12" style={{ animationDelay: "200ms" }}>
-          
+        <div className="card-luxury rounded-3xl shadow-2xl overflow-hidden animate-float-in border border-[#D4AF6A]/30 transition-all duration-500 grid grid-cols-1 md:grid-cols-12 bg-[#141414]" style={{ animationDelay: "200ms" }}>
+
           {/* Left Column: Authentic JHARKHAND 24x7 TV News Channel Broadcast Studio Panel */}
           <Jharkhand24x7NewsChannelBanner />
 
           {/* Right Column: Auth Forms */}
-          <div className="col-span-1 md:col-span-7 flex flex-col justify-between">
+          <div className="col-span-1 md:col-span-7 flex flex-col justify-between bg-[#141414]">
             {/* Theme accent top line */}
-            <div className="h-1 gradient-theme animate-shimmer" />
+            <div className="h-1.5 bg-gradient-to-r from-[#071A2B] via-[#D4AF6A] to-[#071A2B] animate-shimmer" />
 
             {/* Role Tabs */}
-            <div className="flex p-1 bg-dark-50/50 rounded-t-3xl border-b border-dark-100/40">
-            {[
-              { id: "citizen", label: translate("citizenLogin"), Icon: Users },
-              { id: "admin", label: translate("adminLogin"), Icon: Shield },
-              { id: "ngo", label: translate("ngoLogin"), Icon: Globe },
-            ].map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => handleRoleTabClick(id)}
-                className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-bold tracking-wide uppercase transition-all duration-300 cursor-pointer ${
-                  role === id
-                    ? "bg-white text-theme-600 shadow-sm border border-dark-100/10 font-extrabold scale-102"
-                    : "text-dark-500 hover:text-theme-700 hover:bg-theme-50/30"
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-1">
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{label}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="p-8">
-            <div className="mb-6">
-              <h2 className="text-xl font-black text-dark-800 tracking-tight mb-1">
-                {translate(role === "citizen" ? "citizenPortal" : role === "admin" ? "adminDashboard" : "ngoPortal")}
-              </h2>
-              <p className="text-dark-500 text-xs font-semibold leading-relaxed">
-                {translate(role === "citizen" ? "citizenDesc" : role === "admin" ? "adminDesc" : "ngoDesc")}
-              </p>
+            <div className="flex p-1.5 bg-[#0A0A0A] border-b border-[#D4AF37]/30">
+              {[
+                { id: "citizen", label: translate("citizenLogin"), Icon: Users },
+                { id: "admin", label: translate("adminLogin"), Icon: Shield },
+                { id: "ngo", label: translate("ngoLogin"), Icon: Globe },
+              ].map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => handleRoleTabClick(id)}
+                  className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-bold tracking-wide uppercase transition-all duration-300 cursor-pointer ${role === id
+                      ? "bg-[#D4AF37] text-[#0A0A0A] shadow-md border border-[#F3E5AB] font-extrabold scale-102"
+                      : "text-[#888888] hover:text-[#F2F0E4] hover:bg-[#1A1A1A]"
+                    }`}
+                >
+                  <div className="flex items-center justify-center space-x-1.5">
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </div>
+                </button>
+              ))}
             </div>
 
-            {/* Social Logins */}
-            {role === "citizen" && (
-              <>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => handleSocialLogin("Google")}
-                    className="py-3 px-4 bg-white border border-dark-100 hover:border-dark-250 rounded-2xl flex items-center justify-center text-xs font-bold text-dark-700 shadow-sm hover:shadow transition-all duration-200 cursor-pointer scale-100 hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <svg className="h-4.5 w-4.5 mr-2 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-                    </svg>
-                    <span>Google</span>
-                  </button>
+            <div className="p-8">
+              <div className="mb-6">
+                <h2 className="text-xl font-artdeco-heading font-bold text-[#D4AF37] tracking-wider uppercase mb-1">
+                  {translate(role === "citizen" ? "citizenPortal" : role === "admin" ? "adminDashboard" : "ngoPortal")}
+                </h2>
+                <p className="text-[#888888] text-xs font-semibold leading-relaxed">
+                  {translate(role === "citizen" ? "citizenDesc" : role === "admin" ? "adminDesc" : "ngoDesc")}
+                </p>
+              </div>
+
+              {/* Social Logins */}
+              {role === "citizen" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button
+                      type="button"
+                      id="btn-google-signin"
+                      onClick={() => handleSocialLogin("Google")}
+                      disabled={!!socialLoading}
+                      className="py-3 px-4 bg-white border border-[#071A2B]/20 hover:border-[#D4AF6A] rounded-2xl flex items-center justify-center text-xs font-bold text-[#071A2B] shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer scale-100 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {socialLoading === "Google" ? (
+                        <div className="w-4 h-4 border-2 border-[#4285F4] border-t-transparent rounded-full animate-spin mr-2 shrink-0" />
+                      ) : (
+                        <svg className="h-4.5 w-4.5 mr-2 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                        </svg>
+                      )}
+                      <span>{socialLoading === "Google" ? "Signing in…" : "Google"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      id="btn-apple-signin"
+                      onClick={() => handleSocialLogin("Apple")}
+                      disabled={!!socialLoading}
+                      className="py-3 px-4 bg-white border border-[#071A2B]/20 hover:border-[#D4AF6A] rounded-2xl flex items-center justify-center text-xs font-bold text-[#071A2B] shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer scale-100 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {socialLoading === "Apple" ? (
+                        <div className="w-4 h-4 border-2 border-[#071A2B] border-t-transparent rounded-full animate-spin mr-2 shrink-0" />
+                      ) : (
+                        <svg className="h-4.5 w-4.5 mr-2 fill-[#071A2B] shrink-0" viewBox="0 0 24 24">
+                          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-1 .04-2.22.67-2.94 1.5-.64.74-1.2 1.88-1.05 3 .95.07 2.1-.54 2.8-1.44z" />
+                        </svg>
+                      )}
+                      <span>{socialLoading === "Apple" ? "Signing in…" : "Apple ID"}</span>
+                    </button>
+                  </div>
 
                   <button
                     type="button"
-                    onClick={() => handleSocialLogin("Apple")}
-                    className="py-3 px-4 bg-white border border-dark-100 hover:border-dark-250 rounded-2xl flex items-center justify-center text-xs font-bold text-dark-700 shadow-sm hover:shadow transition-all duration-200 cursor-pointer scale-100 hover:scale-[1.02] active:scale-[0.98]"
+                    onClick={() => handleSocialLogin("Phone")}
+                    className="w-full py-3 px-4 bg-white border border-[#071A2B]/20 hover:border-[#D4AF6A] rounded-2xl flex items-center justify-center text-xs font-bold text-[#071A2B] shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer scale-100 hover:scale-[1.02] active:scale-[0.98]"
                   >
-                    <svg className="h-4.5 w-4.5 mr-2 fill-dark-800 shrink-0" viewBox="0 0 24 24">
-                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-1 .04-2.22.67-2.94 1.5-.64.74-1.2 1.88-1.05 3 .95.07 2.1-.54 2.8-1.44z" />
-                    </svg>
-                    <span>Apple ID</span>
+                    <Phone className="h-4.5 w-4.5 mr-2 text-[#9E7A3A] shrink-0" />
+                    <span>Verify Mobile & Login via OTP</span>
                   </button>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleSocialLogin("Phone")}
-                  className="w-full py-3 px-4 bg-white border border-dark-100 hover:border-dark-250 rounded-2xl flex items-center justify-center text-xs font-bold text-dark-700 shadow-sm hover:shadow transition-all duration-200 cursor-pointer scale-100 hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Phone className="h-4.5 w-4.5 mr-2 text-theme-600 shrink-0" />
-                  <span>Verify Mobile & Login via OTP</span>
-                </button>
+                  <div className="flex items-center my-4">
+                    <div className="h-px flex-1 bg-[#586575]/20" />
+                    <span className="px-3 text-[9px] font-extrabold text-[#586575] uppercase tracking-widest">or login with email</span>
+                    <div className="h-px flex-1 bg-[#586575]/20" />
+                  </div>
+                </>
+              )}
 
-                <div className="flex items-center my-4">
-                  <div className="h-px flex-1 bg-dark-100/50" />
-                  <span className="px-3 text-[9px] font-bold text-dark-400 uppercase tracking-widest">or login with email</span>
-                  <div className="h-px flex-1 bg-dark-100/50" />
-                </div>
-              </>
-            )}
+              {/* Manual Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-3.5">
+                  {/* Email Address */}
+                  <div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        placeholder={translate("emailAddress")}
+                        className={`w-full px-5 py-3 pr-10 border rounded-2xl text-xs bg-white focus:bg-white focus:outline-none focus:ring-2 transition-all duration-200 font-semibold text-[#071A2B] ${emailStatus === "valid"
+                            ? "border-green-500 focus:ring-green-200"
+                            : emailStatus === "invalid_format" || emailStatus === "invalid_domain"
+                              ? "border-red-500 focus:ring-red-200"
+                              : "border-[#586575]/30 focus:ring-[#D4AF6A]/30 focus:border-[#D4AF6A]"
+                          }`}
+                      />
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        {emailStatus === "validating" && (
+                          <div className="w-4 h-4 border-2 border-[#D4AF6A] border-t-transparent rounded-full animate-spin" />
+                        )}
+                        {emailStatus === "valid" && (
+                          <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {(emailStatus === "invalid_format" || emailStatus === "invalid_domain") && (
+                          <svg className="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    {emailMessage && (
+                      <p
+                        className={`mt-1.5 text-[10px] font-semibold flex items-center gap-1 px-1 transition-all ${emailStatus === "valid"
+                            ? "text-green-600"
+                            : emailStatus === "validating"
+                              ? "text-[#9E7A3A]"
+                              : "text-red-600"
+                          }`}
+                      >
+                        {emailStatus === "validating" && <span>⏳</span>}
+                        {emailStatus === "valid" && <span>✅</span>}
+                        {(emailStatus === "invalid_format" || emailStatus === "invalid_domain") && <span>❌</span>}
+                        {emailMessage}
+                      </p>
+                    )}
+                  </div>
 
-            {/* Manual Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-3.5">
-                {/* Email Address */}
-                <div>
+                  {/* Password */}
                   <div className="relative">
                     <input
-                      type="text"
+                      type={showPassword ? "text" : "password"}
                       required
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder={translate("emailAddress")}
-                      className={`w-full px-5 py-3 pr-10 border rounded-2xl text-xs bg-white/80 focus:bg-white focus:outline-none focus:ring-2 transition-all duration-200 font-semibold text-dark-750 ${
-                        emailStatus === "valid"
-                          ? "border-green-400 focus:ring-green-200 focus:border-green-500"
-                          : emailStatus === "invalid_format" || emailStatus === "invalid_domain"
-                          ? "border-red-400 focus:ring-red-200 focus:border-red-500"
-                          : "border-dark-200/80 focus:ring-theme-300 focus:border-theme-500"
-                      }`}
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      placeholder={translate("password")}
+                      className="w-full px-5 py-3 pr-12 border border-[#586575]/30 rounded-2xl text-xs bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#D4AF6A]/30 focus:border-[#D4AF6A] transition-all duration-200 font-semibold text-[#071A2B]"
                     />
-                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                      {emailStatus === "validating" && (
-                        <div className="w-4 h-4 border-2 border-theme-400 border-t-transparent rounded-full animate-spin" />
-                      )}
-                      {emailStatus === "valid" && (
-                        <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                      {(emailStatus === "invalid_format" || emailStatus === "invalid_domain") && (
-                        <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                  {emailMessage && (
-                    <p
-                      className={`mt-1.5 text-[10px] font-semibold flex items-center gap-1 px-1 transition-all ${
-                        emailStatus === "valid"
-                          ? "text-green-600"
-                          : emailStatus === "validating"
-                          ? "text-theme-500"
-                          : "text-red-500"
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#586575] hover:text-[#071A2B] transition-colors cursor-pointer"
                     >
-                      {emailStatus === "validating" && <span>⏳</span>}
-                      {emailStatus === "valid" && <span>✅</span>}
-                      {(emailStatus === "invalid_format" || emailStatus === "invalid_domain") && <span>❌</span>}
-                      {emailMessage}
-                    </p>
-                  )}
+                      {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                    </button>
+                  </div>
                 </div>
 
-                {/* Password */}
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder={translate("password")}
-                    className="w-full px-5 py-3 pr-12 border border-dark-200/80 rounded-2xl text-xs bg-white/80 focus:bg-white focus:outline-none focus:ring-2 focus:ring-theme-300 focus:border-theme-500 transition-all duration-200 font-semibold text-dark-750"
-                  />
+                {/* Actions & Forgot Option */}
+                <div className="flex items-center justify-between px-1 text-xs">
+                  <label className="flex items-center select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.rememberMe}
+                      onChange={(e) => setForm({ ...form, rememberMe: e.target.checked })}
+                      className="h-4 w-4 text-[#071A2B] focus:ring-[#D4AF6A] border-[#586575]/30 rounded cursor-pointer accent-[#071A2B]"
+                    />
+                    <span className="ml-2 text-[#586575] font-semibold text-xs">{translate("rememberMe")}</span>
+                  </label>
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-dark-400 hover:text-dark-600 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setActiveForgotModal(true);
+                      setForgotStep(1);
+                      setForgotPhone("");
+                      setForgotOtp("");
+                      setForgotNewPassword("");
+                      setForgotConfirmPassword("");
+                      setForgotError("");
+                      setForgotCountdown(30);
+                    }}
+                    className="text-[#9E7A3A] hover:text-[#071A2B] transition-colors font-extrabold cursor-pointer"
                   >
-                    {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                    {translate("forgotPassword")}
                   </button>
                 </div>
-              </div>
 
-              {/* Actions & Forgot Option */}
-              <div className="flex items-center justify-between px-1 text-xs">
-                <label className="flex items-center select-none cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.rememberMe}
-                    onChange={(e) => setForm({ ...form, rememberMe: e.target.checked })}
-                    className="h-4 w-4 text-theme-600 focus:ring-theme-500 border-theme-200 rounded cursor-pointer accent-theme-600"
-                  />
-                  <span className="ml-2 text-dark-500 font-semibold text-xs">{translate("rememberMe")}</span>
-                </label>
+                {/* Submit Button - Deep Midnight Navy background with Champagne Gold border & High Contrast Text */}
                 <button
-                  type="button"
-                  onClick={() => {
-                    setActiveForgotModal(true);
-                    setForgotStep(1);
-                    setForgotPhone("");
-                    setForgotOtp("");
-                    setForgotNewPassword("");
-                    setForgotConfirmPassword("");
-                    setForgotError("");
-                    setForgotCountdown(30);
-                  }}
-                  className="text-theme-600 hover:text-theme-700 transition-colors font-extrabold cursor-pointer"
+                  type="submit"
+                  disabled={loading}
+                  className="btn-luxury-primary w-full py-3.5 px-6 rounded-full font-black text-xs tracking-widest uppercase mt-4 shadow-lg shadow-[#071A2B]/20 active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {translate("forgotPassword")}
+                  {loading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <span className="text-white font-extrabold">{translate("signIn")}</span>
+                  )}
                 </button>
-              </div>
+              </form>
 
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-theme-500 to-theme-600 hover:from-theme-600 hover:to-theme-700 text-white font-black text-xs py-3 px-4 rounded-full transition-all shadow-md shadow-theme-500/10 hover:shadow-lg hover:shadow-theme-500/20 active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-2 tracking-wider uppercase mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span>{translate("signIn")}</span>
-                )}
-              </button>
-            </form>
-
-            {/* Quick Simulator Profile Access — Admin Only */}
-            {role === "admin" && (
-              <div className="mt-6 pt-5 border-t border-dark-100/30">
-                <label className="block text-[9px] font-black text-dark-400 uppercase tracking-widest text-center mb-1">
-                  Demo Department Login IDs
-                </label>
-                <p className="text-[8.5px] text-dark-400 text-center mb-3 font-medium">
-                  Click a card to fill credentials · Works only in Admin Login
-                </p>
-                <div className="space-y-2 font-sans">
-                  {[
-                    { key: "road_admin",        id: "road-admin-1",    emoji: "🚗", label: "Roads Dept" },
-                    { key: "water_admin",       id: "water-admin-1",   emoji: "💧", label: "Water Supply" },
-                    { key: "garbage_admin",     id: "garbage-admin-1", emoji: "🗑️", label: "Sanitation" },
-                    { key: "electricity_admin", id: "elec-admin-1",    emoji: "⚡", label: "Power Dept" },
-                    { key: "streetlight_admin", id: "light-admin-1",   emoji: "💡", label: "Streetlights" },
-                    { key: "safety_admin",      id: "safety-admin-1",  emoji: "👮", label: "Public Safety" },
-                    { key: "parks_admin",       id: "parks-admin-1",   emoji: "🌳", label: "Forestry" },
-                    { key: "drainage_admin",    id: "drain-admin-1",   emoji: "🌊", label: "Drainage" },
-                    { key: "noise_admin",       id: "noise-admin-1",   emoji: "📢", label: "Environment" },
-                  ].reduce((rows, item, i) => {
-                    if (i % 3 === 0) rows.push([]);
-                    rows[rows.length - 1].push(item);
-                    return rows;
-                  }, []).map((row, ri) => (
-                    <div key={ri} className="grid grid-cols-3 gap-2">
-                      {row.map(({ key, id, emoji, label }) => {
-                        const demo = credentials[key];
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => {
-                              setForm({ email: demo.email, password: demo.password, phone: "", otp: "", rememberMe: true });
-                            }}
-                            title={`Click to fill: ${demo.email} / ${demo.password}`}
-                            className="py-2 px-1.5 bg-white hover:bg-peacock-50 border border-peacock-200/60 hover:border-peacock-400/60 rounded-xl flex flex-col items-start gap-0.5 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md text-left group"
-                          >
-                            <div className="flex items-center gap-1 w-full">
-                              <span className="text-sm">{emoji}</span>
-                              <span className="text-[7.5px] font-black text-peacock-800 uppercase tracking-wide truncate">{label}</span>
-                            </div>
-                            <div className="w-full mt-0.5 space-y-0.5">
-                              <div className="flex items-center gap-1">
-                                <span className="text-[6.5px] font-bold text-dark-400 uppercase w-3 shrink-0">ID</span>
-                                <span className="text-[7px] font-mono font-semibold text-dark-700 truncate">{demo.email}</span>
+              {/* Quick Simulator Profile Access — Admin Only */}
+              {role === "admin" && (
+                <div className="mt-6 pt-5 border-t border-dark-100/30">
+                  <label className="block text-[9px] font-black text-dark-400 uppercase tracking-widest text-center mb-1">
+                    Demo Department Login IDs
+                  </label>
+                  <p className="text-[8.5px] text-dark-400 text-center mb-3 font-medium">
+                    Click a card to fill credentials · Works only in Admin Login
+                  </p>
+                  <div className="space-y-2 font-sans">
+                    {[
+                      { key: "road_admin", id: "road-admin-1", emoji: "🚗", label: "Roads Dept" },
+                      { key: "water_admin", id: "water-admin-1", emoji: "💧", label: "Water Supply" },
+                      { key: "garbage_admin", id: "garbage-admin-1", emoji: "🗑️", label: "Sanitation" },
+                      { key: "electricity_admin", id: "elec-admin-1", emoji: "⚡", label: "Power Dept" },
+                      { key: "streetlight_admin", id: "light-admin-1", emoji: "💡", label: "Streetlights" },
+                      { key: "safety_admin", id: "safety-admin-1", emoji: "👮", label: "Public Safety" },
+                      { key: "parks_admin", id: "parks-admin-1", emoji: "🌳", label: "Forestry" },
+                      { key: "drainage_admin", id: "drain-admin-1", emoji: "🌊", label: "Drainage" },
+                      { key: "noise_admin", id: "noise-admin-1", emoji: "📢", label: "Environment" },
+                    ].reduce((rows, item, i) => {
+                      if (i % 3 === 0) rows.push([]);
+                      rows[rows.length - 1].push(item);
+                      return rows;
+                    }, []).map((row, ri) => (
+                      <div key={ri} className="grid grid-cols-3 gap-2">
+                        {row.map(({ key, id, emoji, label }) => {
+                          const demo = credentials[key];
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => {
+                                setForm({ email: demo.email, password: demo.password, phone: "", otp: "", rememberMe: true });
+                              }}
+                              title={`Click to fill: ${demo.email} / ${demo.password}`}
+                              className="py-2 px-1.5 bg-white hover:bg-peacock-50 border border-peacock-200/60 hover:border-peacock-400/60 rounded-xl flex flex-col items-start gap-0.5 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md text-left group"
+                            >
+                              <div className="flex items-center gap-1 w-full">
+                                <span className="text-sm">{emoji}</span>
+                                <span className="text-[7.5px] font-black text-peacock-800 uppercase tracking-wide truncate">{label}</span>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-[6.5px] font-bold text-dark-400 uppercase w-3 shrink-0">PW</span>
-                                <span className="text-[7px] font-mono font-semibold text-peacock-700">{demo.password}</span>
+                              <div className="w-full mt-0.5 space-y-0.5">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[6.5px] font-bold text-dark-400 uppercase w-3 shrink-0">ID</span>
+                                  <span className="text-[7px] font-mono font-semibold text-dark-700 truncate">{demo.email}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[6.5px] font-bold text-dark-400 uppercase w-3 shrink-0">PW</span>
+                                  <span className="text-[7px] font-mono font-semibold text-peacock-700">{demo.password}</span>
+                                </div>
                               </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
       {/* Mock Authentication Modals */}
       {activeMockAuth && (
         <div className="fixed inset-0 bg-dark-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          
+
           {/* GOOGLE MOCK OAUTH MODAL */}
           {activeMockAuth === "Google" && (
             <div className="bg-white rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl border border-dark-100 animate-float-in flex flex-col font-sans text-dark-800">
               <div className="flex justify-between items-center p-5 border-b border-dark-100">
                 <div className="flex items-center space-x-2">
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
                   </svg>
                   <span className="font-bold text-sm tracking-tight text-dark-700">Sign in with Google</span>
                 </div>
@@ -982,10 +1140,10 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                 <form onSubmit={(e) => {
                   e.preventDefault();
                   if (!mockEmail.trim()) return;
-                  
+
                   const namePart = mockEmail.split("@")[0];
                   const displayName = namePart.charAt(0).toUpperCase() + namePart.slice(1).replace(/[._-]/g, " ");
-                  
+
                   let user;
                   if (role === "citizen") {
                     user = { id: Math.random().toString(), name: `${displayName} (Google)`, email: mockEmail, phone: "+919999999999", role: "citizen", points: 100, badges: [], language: lang, notificationsEnabled: true, location: { city: "Khunti", state: "Jharkhand" } };
@@ -994,7 +1152,7 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                   } else {
                     user = { id: Math.random().toString(), name: `${displayName} (Google)`, email: mockEmail, role: "ngo", department: "Community Support", language: lang, notificationsEnabled: true };
                   }
-                  
+
                   setMockStep(3);
                   setTimeout(() => {
                     onLogin(user);
@@ -1013,7 +1171,7 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                     />
                   </div>
                   {mockError && <p className="text-xs font-bold text-red-500 px-1">{mockError}</p>}
-                  
+
                   <div className="flex space-x-3 pt-2">
                     <button
                       type="button"
@@ -1059,7 +1217,7 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                   <div className="text-center py-2">
                     <p className="text-xs font-semibold text-neutral-400">Use your Apple ID to sign in to CivicReport.</p>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <button
                       onClick={() => {
@@ -1086,7 +1244,7 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                       }
                       const namePart = mockEmail.split("@")[0];
                       const displayName = namePart.charAt(0).toUpperCase() + namePart.slice(1).replace(/[._-]/g, " ");
-                      
+
                       let user;
                       if (role === "citizen") {
                         user = { id: Math.random().toString(), name: `${displayName} (Apple)`, email: mockEmail, phone: "+919999999999", role: "citizen", points: 250, badges: [{ id: "1", name: "First Reporter", description: "Reported first issue", icon: "🏆", earnedAt: new Date() }, { id: "2", name: "Community Hero", description: "Active community member", icon: "🦸", earnedAt: new Date() }], language: lang, notificationsEnabled: true, location: { city: "Khunti", state: "Jharkhand" } };
@@ -1135,8 +1293,8 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
               ) : mockStep === 2 ? (
                 <div className="p-8 flex flex-col items-center justify-center space-y-6">
                   <p className="text-sm font-semibold text-neutral-300 text-center">Place finger on Touch ID sensor to log in</p>
-                  
-                  <div 
+
+                  <div
                     onClick={() => {
                       if (mockScanStatus !== "idle") return;
                       setMockScanStatus("scanning");
@@ -1157,31 +1315,28 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                         }, 800);
                       }, 1800);
                     }}
-                    className={`w-28 h-28 rounded-full flex items-center justify-center border-2 transition-all duration-300 cursor-pointer ${
-                      mockScanStatus === "idle" ? "border-neutral-600 hover:border-neutral-400 bg-neutral-800" :
-                      mockScanStatus === "scanning" ? "border-theme-500 bg-neutral-800 animate-pulse scale-105" :
-                      "border-green-500 bg-green-950/20 scale-105 text-green-400"
-                    }`}
+                    className={`w-28 h-28 rounded-full flex items-center justify-center border-2 transition-all duration-300 cursor-pointer ${mockScanStatus === "idle" ? "border-neutral-600 hover:border-neutral-400 bg-neutral-800" :
+                        mockScanStatus === "scanning" ? "border-theme-500 bg-neutral-800 animate-pulse scale-105" :
+                          "border-green-500 bg-green-950/20 scale-105 text-green-400"
+                      }`}
                   >
-                    <Fingerprint className={`h-16 w-16 transition-colors duration-300 ${
-                      mockScanStatus === "idle" ? "text-neutral-400" :
-                      mockScanStatus === "scanning" ? "text-theme-400 animate-pulse" :
-                      "text-green-400"
-                    }`} />
+                    <Fingerprint className={`h-16 w-16 transition-colors duration-300 ${mockScanStatus === "idle" ? "text-neutral-400" :
+                        mockScanStatus === "scanning" ? "text-theme-400 animate-pulse" :
+                          "text-green-400"
+                      }`} />
                   </div>
-                  
+
                   <div className="text-center">
-                    <p className={`text-xs font-bold transition-all duration-300 ${
-                      mockScanStatus === "idle" ? "text-neutral-500" :
-                      mockScanStatus === "scanning" ? "text-theme-400" :
-                      "text-green-400"
-                    }`}>
+                    <p className={`text-xs font-bold transition-all duration-300 ${mockScanStatus === "idle" ? "text-neutral-500" :
+                        mockScanStatus === "scanning" ? "text-theme-400" :
+                          "text-green-400"
+                      }`}>
                       {mockScanStatus === "idle" && "Click the sensor to authenticate"}
                       {mockScanStatus === "scanning" && "Scanning fingerprint..."}
                       {mockScanStatus === "success" && "Authentication Successful!"}
                     </p>
                   </div>
-                  
+
                   <button
                     onClick={() => setMockStep(1)}
                     className="py-2 px-6 border border-neutral-800 hover:bg-neutral-800 rounded-full text-xs font-bold text-neutral-400 transition-colors cursor-pointer"
@@ -1224,64 +1379,82 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
               {mockStep === 1 ? (
                 <form onSubmit={(e) => {
                   e.preventDefault();
-                  if (!mockPhone.trim() || mockPhone.length < 10) {
-                    setMockError("Please enter a valid phone number.");
+                  const minLen = mockCountryCode === "+91" ? 10 : 7;
+                  if (!mockPhone.trim() || mockPhone.length < minLen) {
+                    setMockError(`Please enter a valid phone number (minimum ${minLen} digits).`);
                     return;
                   }
                   setMockStep(2);
-                  sendLoginOtp(mockPhone);
+                  sendLoginOtp(mockPhone, mockCountryCode);
                 }} className="p-6 space-y-5">
                   <div className="text-center py-1">
                     <p className="text-xs font-semibold text-dark-500">We will send a 6-digit one-time password (OTP) to verify your number.</p>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-dark-500 uppercase tracking-wide px-1">Phone Number</label>
                       <div className="flex">
-                        <select className="px-3 border border-r-0 border-dark-200 rounded-l-xl text-sm bg-dark-50 font-bold focus:outline-none">
-                          <option>+91</option>
-                          <option>+1</option>
-                          <option>+44</option>
-                          <option>+61</option>
+                        <select
+                          value={mockCountryCode}
+                          onChange={(e) => setMockCountryCode(e.target.value)}
+                          className="px-3 py-3 border border-r-0 border-dark-200 rounded-l-xl text-sm bg-dark-50 font-bold focus:outline-none cursor-pointer"
+                        >
+                          <option value="+91">🇮🇳 +91</option>
+                          <option value="+1">🇺🇸 +1</option>
+                          <option value="+44">🇬🇧 +44</option>
+                          <option value="+61">🇦🇺 +61</option>
+                          <option value="+971">🇦🇪 +971</option>
+                          <option value="+65">🇸🇬 +65</option>
                         </select>
                         <input
                           type="tel"
                           required
-                          pattern="[0-9]{10}"
+                          inputMode="numeric"
                           value={mockPhone}
-                          onChange={(e) => setMockPhone(e.target.value.replace(/\D/g, ""))}
-                          placeholder="99999 99999"
+                          onChange={(e) => { setMockPhone(e.target.value.replace(/\D/g, "")); setMockError(""); }}
+                          placeholder={mockCountryCode === "+91" ? "99999 99999" : "Enter number"}
+                          maxLength={15}
+                          autoFocus
                           className="flex-1 px-4 py-3 border border-dark-200 focus:border-theme-500 rounded-r-xl text-sm focus:outline-none transition-colors bg-white font-mono"
                         />
                       </div>
+                      <p className="text-[10px] text-dark-400 px-1">Full number: <strong>{mockCountryCode}{mockPhone || "—"}</strong></p>
                     </div>
                     {mockError && <p className="text-xs font-bold text-red-500 px-1">{mockError}</p>}
-                    
+
                     <button
                       type="submit"
-                      className="w-full py-3.5 px-4 bg-dark-900 hover:bg-dark-800 text-white font-bold rounded-full text-sm transition-colors cursor-pointer mt-2 shadow-sm"
+                      disabled={smsSending}
+                      className="w-full py-3.5 px-4 bg-dark-900 hover:bg-dark-800 disabled:bg-dark-400 text-white font-bold rounded-full text-sm transition-colors cursor-pointer mt-2 shadow-sm"
                     >
-                      Send Verification Code
+                      {smsSending ? "Sending..." : "Send Verification Code"}
                     </button>
                   </div>
                 </form>
               ) : mockStep === 2 ? (
-                <form onSubmit={(e) => {
+                <form onSubmit={async (e) => {
                   e.preventDefault();
-                  if (mockOtp !== generatedLoginOtp) {
-                    setMockError("Incorrect OTP verification code. Please check the code and try again.");
+                  setSmsSending(true);
+                  setMockError("");
+                  const result = await verifyLoginOtp(mockOtp);
+                  setSmsSending(false);
+                  if (!result.ok) {
+                    setMockError(result.message || "Incorrect OTP. Please try again.");
                     return;
                   }
 
                   const demo = credentials[role];
-                  let user;
-                  if (role === "citizen") {
-                    user = { id: Math.random().toString(), name: "Rajesh (Phone)", email: `phone-${role}@demo.com`, phone: `+91${mockPhone}`, role: "citizen", points: 250, badges: [{ id: "1", name: "First Reporter", description: "Reported first issue", icon: "🏆", earnedAt: new Date() }, { id: "2", name: "Community Hero", description: "Active community member", icon: "🦸", earnedAt: new Date() }], language: lang, notificationsEnabled: true, location: { city: "Khunti", state: "Jharkhand" } };
-                  } else if (role === "admin") {
-                    user = { id: Math.random().toString(), name: "Priya (Phone)", email: `phone-${role}@demo.com`, phone: `+91${mockPhone}`, role: "admin", department: "Public Works", language: lang, notificationsEnabled: true };
-                  } else {
-                    user = { id: Math.random().toString(), name: "Green Earth NGO (Phone)", email: `phone-${role}@demo.com`, phone: `+91${mockPhone}`, role: "ngo", department: "Environmental", language: lang, notificationsEnabled: true };
+                  let user = result.user; // may be set by backend (real Twilio path)
+                  if (!user) {
+                    // Fallback: create a local session (used when backend is down or simulated)
+                    if (role === "citizen") {
+                      user = { id: Math.random().toString(), name: "Citizen (Phone)", email: `phone-${role}@demo.com`, phone: `${mockCountryCode}${mockPhone}`, role: "citizen", points: 250, badges: [{ id: "1", name: "First Reporter", description: "Reported first issue", icon: "🏆", earnedAt: new Date() }, { id: "2", name: "Community Hero", description: "Active community member", icon: "🦸", earnedAt: new Date() }], language: lang, notificationsEnabled: true, location: { city: "Khunti", state: "Jharkhand" } };
+                    } else if (role === "admin") {
+                      user = { id: Math.random().toString(), name: "Admin (Phone)", email: `phone-${role}@demo.com`, phone: `${mockCountryCode}${mockPhone}`, role: "admin", department: "Public Works", language: lang, notificationsEnabled: true };
+                    } else {
+                      user = { id: Math.random().toString(), name: "NGO (Phone)", email: `phone-${role}@demo.com`, phone: `${mockCountryCode}${mockPhone}`, role: "ngo", department: "Environmental", language: lang, notificationsEnabled: true };
+                    }
                   }
 
                   setMockStep(3);
@@ -1291,17 +1464,16 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                   }, 1200);
                 }} className="p-6 space-y-5">
                   <div className="text-center">
-                    <p className="text-xs font-semibold text-dark-500">Enter the 6-digit code sent to <span className="font-bold text-dark-800">+91 {mockPhone}</span></p>
+                    <p className="text-xs font-semibold text-dark-500">Enter the 6-digit code sent to <span className="font-bold text-dark-800">{mockCountryCode} {mockPhone}</span></p>
                   </div>
 
                   {smsStatusMessage && (
-                    <div className={`text-center text-[11px] font-bold py-1.5 px-3 rounded-xl border ${
-                      smsStatusType === "success" 
-                        ? "bg-emerald-50 border-emerald-100 text-emerald-800" 
-                        : smsStatusType === "error" 
-                          ? "bg-amber-50 border-amber-100 text-amber-850" 
+                    <div className={`text-center text-[11px] font-bold py-1.5 px-3 rounded-xl border ${smsStatusType === "success"
+                        ? "bg-emerald-50 border-emerald-100 text-emerald-800"
+                        : smsStatusType === "error"
+                          ? "bg-amber-50 border-amber-100 text-amber-850"
                           : "bg-theme-50/50 border-theme-100/30 text-theme-850 animate-pulse"
-                    }`}>
+                      }`}>
                       {smsStatusMessage}
                     </div>
                   )}
@@ -1320,15 +1492,18 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                       />
                     </div>
                     {mockError && <p className="text-xs font-bold text-red-500 px-1">{mockError}</p>}
-                    
-                    <div className="bg-theme-50/40 border border-theme-100/30 rounded-2xl p-3 flex flex-col items-center justify-center space-y-0.5 text-center">
-                      <span className="text-[9px] font-black text-theme-700 tracking-wider uppercase">
-                        Simulated SMS Gateway
-                      </span>
-                      <span className="text-xs font-bold text-dark-750">
-                        Simulated SMS OTP Code: {generatedLoginOtp}
-                      </span>
-                    </div>
+
+                    {/* Show simulated code ONLY when real SMS was NOT sent (fallback mode) */}
+                    {!realSmsSent && generatedLoginOtp && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex flex-col items-center justify-center space-y-0.5 text-center">
+                        <span className="text-[9px] font-black text-amber-700 tracking-wider uppercase">
+                          ⚠ Simulated SMS Gateway (Dev Mode)
+                        </span>
+                        <span className="text-xs font-bold text-amber-900">
+                          Simulated OTP Code: {generatedLoginOtp}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between text-xs font-bold text-dark-500 px-1">
                       <span>Didn't receive code?</span>
@@ -1337,12 +1512,13 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                       ) : (
                         <button
                           type="button"
+                          disabled={smsSending}
                           onClick={() => {
-                            sendLoginOtp(mockPhone);
+                            sendLoginOtp(mockPhone, mockCountryCode);
                           }}
-                          className="text-theme-600 hover:text-theme-700 transition-colors cursor-pointer"
+                          className="text-theme-600 hover:text-theme-700 transition-colors cursor-pointer disabled:opacity-50"
                         >
-                          Resend Code
+                          {smsSending ? "Sending..." : "Resend Code"}
                         </button>
                       )}
                     </div>
@@ -1357,9 +1533,10 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 py-3 px-4 bg-theme-600 hover:bg-theme-700 text-white rounded-xl text-xs font-bold tracking-wide transition-all shadow-sm cursor-pointer text-center"
+                        disabled={smsSending}
+                        className="flex-1 py-3 px-4 bg-theme-600 hover:bg-theme-700 disabled:bg-theme-300 text-white rounded-xl text-xs font-bold tracking-wide transition-all shadow-sm cursor-pointer text-center"
                       >
-                        Verify & Login
+                        {smsSending ? "Verifying..." : "Verify & Login"}
                       </button>
                     </div>
                   </div>
@@ -1394,8 +1571,8 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                 >
                   <Settings className="h-4.5 w-4.5" />
                 </button>
-                <button 
-                  onClick={() => setActiveForgotModal(false)} 
+                <button
+                  onClick={() => setActiveForgotModal(false)}
                   className="p-1 text-dark-400 hover:text-dark-600 rounded-full hover:bg-dark-50 cursor-pointer"
                 >
                   <X className="h-5 w-5" />
@@ -1417,7 +1594,7 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                 <div className="text-center py-1">
                   <p className="text-xs font-semibold text-dark-500">Enter your registered mobile number to receive a reset code.</p>
                 </div>
-                
+
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-dark-500 uppercase tracking-wide px-1">Mobile Number</label>
@@ -1437,7 +1614,7 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                     </div>
                   </div>
                   {forgotError && <p className="text-xs font-bold text-red-500 px-1">{forgotError}</p>}
-                  
+
                   <button
                     type="submit"
                     className="w-full py-3.5 px-4 bg-dark-900 hover:bg-dark-800 text-white font-bold rounded-full text-sm transition-colors cursor-pointer mt-2 shadow-sm"
@@ -1464,13 +1641,12 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                 </div>
 
                 {smsStatusMessage && (
-                  <div className={`text-center text-[11px] font-bold py-1.5 px-3 rounded-xl border ${
-                    smsStatusType === "success" 
-                      ? "bg-emerald-50 border-emerald-100 text-emerald-800" 
-                      : smsStatusType === "error" 
-                        ? "bg-amber-50 border-amber-100 text-amber-850" 
+                  <div className={`text-center text-[11px] font-bold py-1.5 px-3 rounded-xl border ${smsStatusType === "success"
+                      ? "bg-emerald-50 border-emerald-100 text-emerald-800"
+                      : smsStatusType === "error"
+                        ? "bg-amber-50 border-amber-100 text-amber-850"
                         : "bg-theme-50/50 border-theme-100/30 text-theme-850 animate-pulse"
-                  }`}>
+                    }`}>
                     {smsStatusMessage}
                   </div>
                 )}
@@ -1489,15 +1665,18 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
                     />
                   </div>
                   {forgotError && <p className="text-xs font-bold text-red-500 px-1">{forgotError}</p>}
-                  
-                  <div className="bg-theme-50/40 border border-theme-100/30 rounded-2xl p-3 flex flex-col items-center justify-center space-y-0.5 text-center">
-                    <span className="text-[9px] font-black text-theme-700 tracking-wider uppercase">
-                      Simulated SMS Gateway
-                    </span>
-                    <span className="text-xs font-bold text-dark-750">
-                      Simulated SMS Reset Code: {generatedForgotOtp}
-                    </span>
-                  </div>
+
+                  {/* Show simulated code ONLY when real SMS was NOT sent */}
+                  {!realSmsSent && generatedForgotOtp && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex flex-col items-center justify-center space-y-0.5 text-center">
+                      <span className="text-[9px] font-black text-amber-700 tracking-wider uppercase">
+                        ⚠ Simulated SMS Gateway (Dev Mode)
+                      </span>
+                      <span className="text-xs font-bold text-amber-900">
+                        Simulated Reset Code: {generatedForgotOtp}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-xs font-bold text-dark-500 px-1">
                     <span>Didn't receive code?</span>
@@ -1645,6 +1824,17 @@ export default function Login({ onLogin, theme = "citizen", onThemeChange, mode 
         </div>
       )}
       <SmsSettingsModal isOpen={showSmsSettings} onClose={() => setShowSmsSettings(false)} />
+
+      {/* ── Real Firebase Phone Authentication Modal ───────────────────────────
+          This is the production OTP flow. When a user clicks "Verify Mobile &
+          Login via OTP", this modal opens and Firebase sends a real SMS.       */}
+      <FirebasePhoneAuthModal
+        isOpen={firebasePhoneOpen}
+        onClose={() => setFirebasePhoneOpen(false)}
+        onLogin={onLogin}
+        role={role}
+        lang={lang}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { ShieldAlert, Send, X, AlertTriangle, AlertCircle } from "lucide-react";
+import { ShieldAlert, Send, X, AlertTriangle } from "lucide-react";
 import { getTranslator } from "../locales";
+import MagneticButton from "./MagneticButton";
 
 export default function EmergencyModal({ isOpen, onClose, onSubmitEmergency, lang = "en" }) {
   const t = getTranslator(lang);
@@ -20,7 +21,7 @@ export default function EmergencyModal({ isOpen, onClose, onSubmitEmergency, lan
       "gas-leak": "Gas Leak Detected",
       flooding: "Public Area Flooding",
       fire: "Fire Accident",
-      electric: "Live Exposed Live Wires",
+      electric: "Live Exposed Wires",
       other: "Critical Danger Hazard",
     };
 
@@ -37,43 +38,43 @@ export default function EmergencyModal({ isOpen, onClose, onSubmitEmergency, lan
   };
 
   return (
-    <div className="fixed inset-0 bg-red-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-red-200/50 animate-float-in">
+    <div className="fixed inset-0 bg-[#0A0A0A]/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-float-in">
+      <div className="bg-[#141414] max-w-md w-full overflow-hidden shadow-2xl border border-[#D4AF37]/50">
         
-        {/* Header alert panel */}
-        <div className="bg-gradient-to-r from-red-700 to-red-600 px-6 py-5 text-white flex items-center justify-between">
+        {/* Header Alert Panel */}
+        <div className="bg-[#C94A4A] px-5 py-4 text-white flex items-center justify-between relative border-b border-[#D4AF37]/30">
           <div className="flex items-center space-x-2.5">
-            <ShieldAlert className="h-6 w-6 text-white animate-pulse" />
-            <h3 className="font-black text-sm tracking-wider uppercase">{t("emergencyTitle")}</h3>
+            <ShieldAlert className="h-5.5 w-5.5 text-white animate-pulse" />
+            <h3 className="font-artdeco-heading text-sm tracking-widest uppercase text-white">{t("emergencyTitle") || "Municipal Red Line Emergency"}</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 px-[5.5px] rounded-full text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1.5 rounded text-white/80 hover:text-white hover:bg-black/20 transition-colors cursor-pointer"
           >
-            <X className="h-5.5 w-5.5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          <div className="bg-red-50/50 p-4 rounded-2xl border border-red-100 flex items-start space-x-2.5 text-red-800 text-xs">
-            <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-red-600 mt-0.5" />
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="bg-[#C94A4A]/10 p-3.5 border border-[#C94A4A]/40 flex items-start space-x-2.5 text-[#C94A4A] text-xs">
+            <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-[#C94A4A] mt-0.5" />
             <p className="leading-relaxed font-semibold">
-              <strong>{t("warningWord")}</strong> {t("warningMessage")}
+              <strong>{t("warningWord") || "WARNING:"}</strong> {t("warningMessage") || "False reporting of critical infrastructure emergencies is a punishable offense under state regulation."}
             </p>
           </div>
 
-          {/* Emergency type selector */}
+          {/* Emergency Type Selector */}
           <div>
-            <label className="block text-xs font-bold text-dark-600 uppercase tracking-widest mb-2">
-              {t("emergencyType")}
+            <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-1.5">
+              {t("emergencyType") || "Hazards Priority Group *"}
             </label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full px-3.5 py-2.5 border border-red-200/60 rounded-xl text-sm focus:outline-none focus:bg-white bg-white/85 font-semibold text-dark-700 cursor-pointer"
+              className="w-full px-3.5 py-2.5 border border-[#D4AF37]/30 bg-[#0A0A0A] text-xs font-semibold text-[#F2F0E4] cursor-pointer focus:border-[#D4AF37] focus:outline-none"
             >
-              <option value="gas-leak">Gas Smell Leak</option>
+              <option value="gas-leak">Gas Leak Smell</option>
               <option value="flooding">Flooding & Sidewalk Collapse</option>
               <option value="fire">Fire / Sparking Electrical Line</option>
               <option value="electric">Exposed Live Power Lines</option>
@@ -81,29 +82,29 @@ export default function EmergencyModal({ isOpen, onClose, onSubmitEmergency, lan
             </select>
           </div>
 
-          {/* Details input text area */}
+          {/* Details Input */}
           <div>
-            <label className="block text-xs font-bold text-dark-600 uppercase tracking-widest mb-2">
-              {t("emergencyDescLabel")}
+            <label className="block text-xs font-artdeco-heading text-[#D4AF37] uppercase tracking-widest mb-1.5">
+              {t("emergencyDescLabel") || "Describe Situation & Landmark address *"}
             </label>
             <textarea
               required
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("emergencyPlaceholder")}
-              className="w-full p-4 border border-red-200/50 bg-white/85 rounded-xl text-sm focus:outline-none"
+              placeholder={t("emergencyPlaceholder") || "Provide detailed address and landmarks..."}
+              className="w-full p-3 border border-[#D4AF37]/30 bg-[#0A0A0A] text-xs text-[#F2F0E4] focus:border-[#D4AF37] focus:outline-none placeholder:text-[#888888]"
             />
           </div>
 
-          {/* Submit btn */}
-          <button
+          {/* Submit Button */}
+          <MagneticButton
             type="submit"
-            className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-black text-xs py-3 px-4 rounded-xl transition-all shadow-lg shadow-red-500/25 flex items-center justify-center space-x-2 cursor-pointer"
+            className="w-full bg-[#C94A4A] hover:bg-[#a63838] text-white font-bold text-xs py-3 px-4 transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer uppercase tracking-widest border border-[#D4AF37]/40"
           >
-            <Send className="h-4 w-4" />
-            <span className="uppercase tracking-widest">{t("dispatchUnit")}</span>
-          </button>
+            <Send className="h-4 w-4 text-[#D4AF37]" />
+            <span>{t("dispatchUnit") || "DISPATCH INCIDENT UNIT"}</span>
+          </MagneticButton>
         </form>
 
       </div>

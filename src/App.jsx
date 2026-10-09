@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Login from "./Login";
+import { onAuthChange, signOutUser } from "./firebase/phoneAuthService";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import Dashboard from "./components/Dashboard";
@@ -23,8 +24,29 @@ export default function App() {
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isEmergencyOpen, setIsEmergencyOpen] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem("civic_pref_theme") || "citizen");
-  const [mode, setMode] = useState(() => localStorage.getItem("civic_pref_mode") || "light");
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Restore Firebase Phone Auth session across page refreshes.
+  useEffect(() => {
+    const unsubscribe = onAuthChange((firebaseUser) => {
+      if (firebaseUser && firebaseUser.phoneNumber && !user) {
+        const stored = localStorage.getItem("civic_firebase_user");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed.firebaseUid === firebaseUser.uid) {
+              setUser(parsed);
+            }
+          } catch (_) {
+            localStorage.removeItem("civic_firebase_user");
+          }
+        }
+      } else if (!firebaseUser) {
+        localStorage.removeItem("civic_firebase_user");
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Load issues from MongoDB SIH database
   useEffect(() => {
@@ -63,11 +85,10 @@ export default function App() {
     const initialLang = authenticatedUser.language || localStorage.getItem("civic_pref_lang") || "en";
     setLang(initialLang);
     localStorage.setItem("civic_pref_lang", initialLang);
-    
-    // Automatically pick the theme matching the user's role:
-    const roleTheme = authenticatedUser.role === "admin" ? "admin" : authenticatedUser.role === "ngo" ? "ngo" : "citizen";
-    setTheme(roleTheme);
-    localStorage.setItem("civic_pref_theme", roleTheme);
+
+    if (authenticatedUser.firebaseUid) {
+      localStorage.setItem("civic_firebase_user", JSON.stringify(authenticatedUser));
+    }
 
     setActiveTab("dashboard");
   };
@@ -77,22 +98,14 @@ export default function App() {
     localStorage.setItem("civic_pref_lang", newLang);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+    } catch (_) {}
+    localStorage.removeItem("civic_firebase_user");
     setUser(null);
   };
 
-  const handleThemeChange = (newTheme) => {
-    setTheme(newTheme);
-    localStorage.setItem("civic_pref_theme", newTheme);
-  };
-
-  const handleModeToggle = () => {
-    const newMode = mode === "light" ? "dark" : "light";
-    setMode(newMode);
-    localStorage.setItem("civic_pref_mode", newMode);
-  };
-
-  // Upvote Event Action
   const handleUpvoteIssue = async (id) => {
     try {
       const res = await fetch(`/api/issues/${id}/upvote`, {
@@ -100,7 +113,7 @@ export default function App() {
       });
       const saved = await res.json();
       const mappedSaved = { ...saved, id: saved._id };
-      
+
       setIssues((prev) =>
         prev.map((issue) => (issue.id === id ? mappedSaved : issue))
       );
@@ -112,7 +125,6 @@ export default function App() {
     }
   };
 
-  // Register New Issues ticket
   const handleAddIssue = async (newTicket) => {
     const freshTicket = {
       ...newTicket,
@@ -129,10 +141,9 @@ export default function App() {
       });
       const saved = await res.json();
       const mappedSaved = { ...saved, id: saved._id };
-      
+
       setIssues((prev) => [mappedSaved, ...prev]);
 
-      // Insert System notification alert
       const newNotify = {
         id: (notifications.length + 1).toString(),
         userId: user.id,
@@ -152,7 +163,6 @@ export default function App() {
     }
   };
 
-  // Append user activity comments logging
   const handleAddComment = async (issueId, text) => {
     const freshComment = {
       id: Math.random().toString(),
@@ -187,13 +197,12 @@ export default function App() {
     }
   };
 
-  // Modify incident status (Admin / NGO action)
   const handleUpdateStatus = async (issueId, newStatus) => {
     const updateObj = { status: newStatus };
     if (newStatus === "resolved") {
       updateObj.resolvedAt = new Date();
     }
-    
+
     try {
       const res = await fetch(`/api/issues/${issueId}`, {
         method: "PUT",
@@ -207,7 +216,6 @@ export default function App() {
         prev.map((issue) => (issue.id === issueId ? mappedSaved : issue))
       );
 
-      // Alert triggering notification
       const notifyName = `Issue Status Updated`;
       const msg = `Ticket Reference ${mappedSaved.ticketId} status set to ${newStatus}.`;
 
@@ -232,16 +240,19 @@ export default function App() {
     }
   };
 
-  // Ticket department allocation (Admin Actions)
-  const handleAssignTicket = async (issueId, department, etaDate) => {
+  const handleAssignTicket = async (issueId, department, etaDate, assignedByName, newStatus) => {
     const updateObj = {
       assignedTo: {
         id: Math.random().toString(),
-        name: `Official Assignee`,
+        name: assignedByName || "Admin Officer",
         department,
       },
       estimatedResolution: etaDate ? new Date(etaDate) : null,
+      status: newStatus || "verified",
     };
+    if (newStatus === "resolved") {
+      updateObj.resolvedAt = new Date();
+    }
 
     try {
       const res = await fetch(`/api/issues/${issueId}`, {
@@ -249,6 +260,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateObj),
       });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const saved = await res.json();
       const mappedSaved = { ...saved, id: saved._id };
 
@@ -259,12 +271,24 @@ export default function App() {
       if (selectedIssue && selectedIssue.id === issueId) {
         setSelectedIssue(mappedSaved);
       }
+
+      const newNotify = {
+        id: Math.random().toString(),
+        userId: "all",
+        title: "Ticket Forwarded to Department",
+        message: `Ticket #${mappedSaved.ticketId} was forwarded to "${department}" by ${assignedByName || "Admin"} — status: ${newStatus || "verified"}.`,
+        type: "status_update",
+        issueId,
+        read: false,
+        createdAt: new Date(),
+      };
+      setNotifications((prev) => [newNotify, ...prev]);
     } catch (err) {
       console.error("Error assigning ticket:", err);
+      throw err;
     }
   };
 
-  // Citizen Rating and Feedback evaluations submission
   const handleSubmitFeedback = async (issueId, rating, feedback) => {
     const updateObj = { rating, feedback };
 
@@ -306,7 +330,6 @@ export default function App() {
     }
   };
 
-  // Urgent Emergency Alert Submissions triggers
   const handleAddEmergency = async (emergencyDetails) => {
     const ticketId = `EM${Math.floor(100 + Math.random() * 900)}`;
     const freshEmergency = {
@@ -367,38 +390,46 @@ export default function App() {
     return (
       <Login
         onLogin={handleLogin}
-        theme={theme}
-        onThemeChange={handleThemeChange}
-        mode={mode}
-        onModeToggle={handleModeToggle}
       />
     );
   }
 
-  // Filter issues based on department-level administrator permissions
   const getDeptCategory = (department) => {
     if (!department) return null;
     const mapping = {
       "Road Maintenance": "road",
       "Garbage & Sanitation": "garbage",
+      "Garbage Disposal & Sanitation": "garbage",
       "Water Supply": "water",
+      "Water Supply Department": "water",
       "Electricity Dept": "electricity",
+      "Electricity Board": "electricity",
       "Streetlight Dept": "streetlight",
+      "Street Light Commission": "streetlight",
       "Public Safety": "public-safety",
+      "Public Works": "public-safety",
       "Forestry Dept": "parks",
       "Drainage Dept": "drainage",
-      "Environment Dept": "noise"
+      "Environment Dept": "noise",
+      "Emergency Services": "emergency",
     };
     return mapping[department] || null;
   };
 
   const adminCategory = user && user.role === "admin" ? getDeptCategory(user.department) : null;
-  
+
   const viewableIssues = issues.filter(issue => {
-    if (adminCategory) {
-      return issue.category === adminCategory;
+    if (!adminCategory) return true;
+
+    if (issue.assignedTo?.department) {
+      const forwardedCategory = getDeptCategory(issue.assignedTo.department);
+      if (forwardedCategory === adminCategory) return true;
+      if (issue.assignedTo.department === user.department) return true;
     }
-    return true;
+
+    if (issue.category === adminCategory) return true;
+
+    return false;
   });
 
   const filteredMyIssues = viewableIssues.filter(
@@ -414,12 +445,7 @@ export default function App() {
   );
 
   return (
-    <div data-theme={theme} data-mode={mode} className="flex gradient-theme-light pattern-professional min-h-screen text-dark-800 antialiased font-sans relative overflow-hidden">
-      {/* Decorative floating background blobs */}
-      <div className="absolute top-20 left-1/4 w-72 h-72 bg-theme-200/25 rounded-full blur-3xl animate-blob-1 pointer-events-none z-0" />
-      <div className="absolute bottom-20 right-20 w-96 h-96 bg-theme-100/20 rounded-full blur-3xl animate-blob-2 pointer-events-none z-0" />
-      <div className="absolute top-1/2 left-2/3 w-60 h-60 bg-theme-300/15 rounded-full blur-3xl animate-blob-3 pointer-events-none z-0" />
-
+    <div className="flex bg-[#F5F7FA] min-h-screen text-[#172B4D] antialiased font-sans relative overflow-x-hidden">
       {/* Sidebar Navigation */}
       <Sidebar
         user={user}
@@ -427,10 +453,12 @@ export default function App() {
         setActiveTab={setActiveTab}
         onLogout={handleLogout}
         lang={lang}
+        isMobileOpen={isMobileOpen}
+        setIsMobileOpen={setIsMobileOpen}
       />
 
       {/* Main Container Layout */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 ml-0 md:ml-64 flex flex-col min-h-screen min-w-0">
         {/* Header toolbar */}
         <Header
           user={user}
@@ -443,14 +471,12 @@ export default function App() {
           onTriggerEmergency={() => setIsEmergencyOpen(true)}
           lang={lang}
           onLangChange={handleLangChange}
-          theme={theme}
-          onThemeChange={handleThemeChange}
-          mode={mode}
-          onModeToggle={handleModeToggle}
+          isMobileOpen={isMobileOpen}
+          setIsMobileOpen={setIsMobileOpen}
         />
 
         {/* Tab content view routes */}
-        <main className="flex-1 pt-24 px-8 pb-12 overflow-y-auto">
+        <main className="flex-1 pt-28 md:pt-20 px-4 md:px-8 pb-12 overflow-y-auto">
           {activeTab === "dashboard" && (
             <Dashboard
               user={user}
@@ -469,21 +495,15 @@ export default function App() {
 
           {activeTab === "my-reports" && (
             <div className="space-y-6 animate-float-in">
-              <div>
-                <h1 className="text-3xl font-black text-dark-800 tracking-tight">{t("myReports")}</h1>
-                <p className="text-dark-500 font-medium mt-1">{t("myReportsSubtitle")}</p>
-                <div className="flex items-center mt-3 gap-1.5">
-                  <div className="h-0.5 w-16 bg-gradient-to-r from-theme-400 to-theme-200 rounded-full" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-theme-400" />
-                  <div className="w-1 h-1 rounded-full bg-theme-300" />
-                  <div className="h-0.5 w-8 bg-gradient-to-r from-theme-300 to-transparent rounded-full" />
-                </div>
+              <div className="border-b border-[#D4AF37]/30 pb-3">
+                <h1 className="text-2xl font-artdeco-heading text-[#F2F0E4]">{t("myReports") || "My Submissions"}</h1>
+                <p className="text-[#888888] text-xs mt-1">{t("myReportsSubtitle") || "Track status of civic tickets lodged by you"}</p>
               </div>
 
               {filteredMyIssues.length === 0 ? (
-                <div className="card-premium p-12 text-center rounded-2xl border-2 border-dashed border-theme-200/30">
-                  <p className="text-dark-500 text-sm font-bold mb-1">{t("noReportsYet")}</p>
-                  <p className="text-dark-500/50 text-xs">{t("getStartedReport")}</p>
+                <div className="card-art-deco p-10 text-center border border-[#D4AF37]/30">
+                  <p className="text-[#F2F0E4] text-sm font-semibold mb-1">{t("noReportsYet") || "No reports submitted yet"}</p>
+                  <p className="text-[#888888] text-xs">{t("getStartedReport") || "Click 'Report Issue' to lodge a new civic ticket."}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -503,20 +523,14 @@ export default function App() {
 
           {activeTab === "all-issues" && (
             <div className="space-y-6 animate-float-in">
-              <div>
-                <h1 className="text-3xl font-black text-dark-800 tracking-tight">{t("allIssues")}</h1>
-                <p className="text-dark-500 font-medium mt-1">{t("allIssuesSubtitle")}</p>
-                <div className="flex items-center mt-3 gap-1.5">
-                  <div className="h-0.5 w-16 bg-gradient-to-r from-theme-400 to-theme-200 rounded-full" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-theme-400" />
-                  <div className="w-1 h-1 rounded-full bg-theme-300" />
-                  <div className="h-0.5 w-8 bg-gradient-to-r from-theme-300 to-transparent rounded-full" />
-                </div>
+              <div className="border-b border-[#D4AF37]/30 pb-3">
+                <h1 className="text-2xl font-artdeco-heading text-[#F2F0E4]">{t("allIssues") || "Public Ticket Directory"}</h1>
+                <p className="text-[#888888] text-xs mt-1">{t("allIssuesSubtitle") || "View and monitor reported municipal issues across departments"}</p>
               </div>
 
               {matchedSearchAllIssues.length === 0 ? (
-                <div className="card-premium p-12 text-center rounded-2xl border-2 border-dashed border-theme-200/30">
-                  <p className="text-dark-500 text-sm font-bold">{t("noIssuesDiscovered")}</p>
+                <div className="card-art-deco p-10 text-center border border-[#D4AF37]/30">
+                  <p className="text-[#F2F0E4] text-sm font-semibold">{t("noIssuesDiscovered") || "No matching civic tickets found"}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -538,9 +552,9 @@ export default function App() {
             <IssueMap issues={viewableIssues} onSelectIssue={setSelectedIssue} lang={lang} />
           )}
 
-          {activeTab === "analytics" && <Analytics analyticsState={analytics} lang={lang} />}
+          {activeTab === "analytics" && <Analytics analyticsState={analytics} issues={issues} lang={lang} />}
 
-          {activeTab === "leaderboard" && <Leaderboard user={user} lang={lang} />}
+          {activeTab === "leaderboard" && <Leaderboard user={user} issues={issues} lang={lang} />}
         </main>
       </div>
 
@@ -559,7 +573,7 @@ export default function App() {
         />
       )}
 
-      {/* Municipal Red Line Emergency Modal */}
+      {/* Emergency Modal */}
       <EmergencyModal
         isOpen={isEmergencyOpen}
         onClose={() => setIsEmergencyOpen(false)}
